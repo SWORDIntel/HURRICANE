@@ -176,20 +176,30 @@ If you have a dynamic IP address, you can use the `he-update` utility to automat
 - libcurl development library: `sudo apt-get install libcurl4-openssl-dev`
 - Hurricane Electric tunnel account credentials
 
+**Getting Your Credentials:**
+1. Login to https://tunnelbroker.net
+2. Click on your tunnel
+3. Under "Example Update URL", you'll find credentials in this format:
+   ```
+   https://USERNAME:PASSWORD@ipv4.tunnelbroker.net/nic/update?hostname=TUNNEL_ID
+   ```
+4. Use the USERNAME (your HE account username) and PASSWORD (your HE account password or update key)
+5. Use the TUNNEL_ID (the numeric ID after `hostname=`)
+
 **Manual Usage:**
 
 ```bash
 # Auto-detect your public IP and update tunnel endpoint
-he-update -u USERNAME -p PASSWORD -t TUNNEL_ID
+he-update -u SWORDIntel -p your_password -t 940962
 
 # Force update even if IP hasn't changed
-he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -f
+he-update -u SWORDIntel -p your_password -t 940962 -f
 
 # Specify a specific IP address
-he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -i 1.2.3.4
+he-update -u SWORDIntel -p your_password -t 940962 -i 1.2.3.4
 
 # Verbose output
-he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -v
+he-update -u SWORDIntel -p your_password -t 940962 -v
 ```
 
 **Automatic Updates with Systemd:**

@@ -14,7 +14,7 @@
 #include <ifaddrs.h>
 
 #define VERSION "1.0.0"
-#define HE_UPDATE_URL "https://ipv4.tunnelbroker.net/tstamp/"
+#define HE_UPDATE_URL "https://ipv4.tunnelbroker.net/nic/update"
 #define IP_CHECK_URL "https://ipv4.icanhazip.com"
 
 /* Response buffer for curl */
@@ -95,8 +95,12 @@ static int update_he_endpoint(const char *username, const char *password,
     char userpwd[256];
     int ret = -1;
 
-    /* Build URL: https://ipv4.tunnelbroker.net/tstamp/TUNNEL_ID */
-    snprintf(url, sizeof(url), "%s%s", HE_UPDATE_URL, tunnel_id);
+    /* Build URL: https://ipv4.tunnelbroker.net/nic/update?hostname=TUNNEL_ID[&myip=IP] */
+    if (new_ip && strlen(new_ip) > 0) {
+        snprintf(url, sizeof(url), "%s?hostname=%s&myip=%s", HE_UPDATE_URL, tunnel_id, new_ip);
+    } else {
+        snprintf(url, sizeof(url), "%s?hostname=%s", HE_UPDATE_URL, tunnel_id);
+    }
     snprintf(userpwd, sizeof(userpwd), "%s:%s", username, password);
 
     curl = curl_easy_init();
@@ -113,13 +117,6 @@ static int update_he_endpoint(const char *username, const char *password,
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-    /* Optional: specify IP to update to */
-    if (new_ip && strlen(new_ip) > 0) {
-        char postfields[128];
-        snprintf(postfields, sizeof(postfields), "myip=%s", new_ip);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields);
-    }
-
     res = curl_easy_perform(curl);
 
     if (res == CURLE_OK) {
@@ -127,12 +124,35 @@ static int update_he_endpoint(const char *username, const char *password,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
         if (http_code == 200) {
-            printf("✓ Tunnel endpoint updated successfully\n");
-            if (response.data && strstr(response.data, "good") != NULL) {
-                ret = 0;
-            } else if (response.data) {
-                printf("Response: %s\n", response.data);
-                ret = 0;  /* Consider success if HTTP 200 */
+            /* Parse DynDNS-compatible response */
+            if (response.data) {
+                /* Remove trailing whitespace */
+                size_t len = strlen(response.data);
+                while (len > 0 && (response.data[len-1] == '\n' || response.data[len-1] == '\r' || response.data[len-1] == ' ')) {
+                    response.data[--len] = '\0';
+                }
+
+                if (strstr(response.data, "good ") == response.data) {
+                    printf("✓ Tunnel endpoint updated successfully\n");
+                    printf("Response: %s\n", response.data);
+                    ret = 0;
+                } else if (strstr(response.data, "nochg ") == response.data) {
+                    printf("✓ Tunnel endpoint unchanged (already correct)\n");
+                    printf("Response: %s\n", response.data);
+                    ret = 0;
+                } else if (strstr(response.data, "badauth") == response.data) {
+                    fprintf(stderr, "✗ Authentication failed: invalid username/password\n");
+                } else if (strstr(response.data, "!donator") == response.data) {
+                    fprintf(stderr, "✗ Feature requires donator/premium account\n");
+                } else if (strstr(response.data, "notfqdn") == response.data) {
+                    fprintf(stderr, "✗ Invalid tunnel ID format\n");
+                } else if (strstr(response.data, "nohost") == response.data) {
+                    fprintf(stderr, "✗ Tunnel ID not found\n");
+                } else if (strstr(response.data, "abuse") == response.data) {
+                    fprintf(stderr, "✗ Tunnel blocked for abuse\n");
+                } else {
+                    fprintf(stderr, "✗ Unknown response: %s\n", response.data);
+                }
             }
         } else if (http_code == 401) {
             fprintf(stderr, "✗ Authentication failed: invalid username/password\n");
