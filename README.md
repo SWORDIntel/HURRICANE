@@ -257,6 +257,79 @@ List all configured tunnels and their states.
 }
 ```
 
+#### POST /ports/udp
+
+Create a UDP port mapping (Proxy Mode only).
+
+**Request:**
+```json
+{
+  "internal_port": 7654,
+  "external_port": 7654,
+  "v6_address": "2001:470:1234:5678::2",
+  "description": "I2P-UDP"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "internal_port": 7654,
+  "external_port": 7654,
+  "v6_address": "2001:470:1234:5678::2"
+}
+```
+
+**Usage:**
+```bash
+curl -X POST http://localhost:8642/ports/udp \
+  -H "Content-Type: application/json" \
+  -d '{"internal_port":7654,"external_port":7654,"v6_address":"2001:470:1234:5678::2","description":"I2P-UDP"}'
+```
+
+#### POST /ports/tcp
+
+Create a TCP port mapping (Proxy Mode only).
+
+**Request:**
+```json
+{
+  "internal_port": 9000,
+  "external_port": 9000,
+  "v6_address": "2001:470:1234:5678::2",
+  "description": "Application"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "internal_port": 9000,
+  "external_port": 9000,
+  "v6_address": "2001:470:1234:5678::2"
+}
+```
+
+#### GET /probe/udp?port=XXXX
+
+Initiate UDP reachability probe for a port.
+
+**Response:**
+```json
+{
+  "status": "probe_initiated",
+  "port": 7654,
+  "note": "External UDP probe not implemented - use external tools to verify reachability"
+}
+```
+
+**Usage:**
+```bash
+curl "http://localhost:8642/probe/udp?port=7654"
+```
+
 ## MCP Server Interface
 
 The MCP (Model Context Protocol) server provides a local-only interface for AI agents and automation tools.

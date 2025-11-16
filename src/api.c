@@ -9,6 +9,7 @@
 #include "session.h"
 #include "crypto.h"
 #include "hwauth.h"
+#include "proxy.h"
 #include "v6gw.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -334,6 +335,106 @@ static void handle_auth_status(int client_fd, const char *request) {
 }
 
 /* Route incoming HTTP request */
+/* API endpoint: POST /ports/udp */
+static void handle_add_udp_port(int client_fd, const char *request_body) {
+    /* Parse JSON body: {"internal_port":7654, "external_port":7654, "v6_address":"2001:db8::1", "description":"I2P-UDP"} */
+    int internal_port = 0, external_port = 0;
+    char v6_address[INET6_ADDRSTRLEN] = {0};
+    char description[128] = {0};
+
+    if (sscanf(request_body,
+               "{\"internal_port\":%d,\"external_port\":%d,\"v6_address\":\"%[^\"]\",\"description\":\"%[^\"]\"}",
+               &internal_port, &external_port, v6_address, description) < 2) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Invalid JSON body\"}");
+        return;
+    }
+
+    if (g_ctx.config.mode != MODE_PROXY) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Proxy mode not enabled\"}");
+        return;
+    }
+
+    struct in6_addr remote_addr;
+    if (inet_pton(AF_INET6, v6_address, &remote_addr) != 1) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Invalid IPv6 address\"}");
+        return;
+    }
+
+    if (proxy_add_udp_mapping(internal_port, &remote_addr, external_port, description) != 0) {
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Failed to create UDP mapping\"}");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response),
+             "{\"status\": \"ok\", \"internal_port\": %d, \"external_port\": %d, \"v6_address\": \"%s\"}",
+             internal_port, external_port, v6_address);
+    send_json_response(client_fd, 200, "OK", response);
+}
+
+/* API endpoint: POST /ports/tcp */
+static void handle_add_tcp_port(int client_fd, const char *request_body) {
+    int internal_port = 0, external_port = 0;
+    char v6_address[INET6_ADDRSTRLEN] = {0};
+    char description[128] = {0};
+
+    if (sscanf(request_body,
+               "{\"internal_port\":%d,\"external_port\":%d,\"v6_address\":\"%[^\"]\",\"description\":\"%[^\"]\"}",
+               &internal_port, &external_port, v6_address, description) < 2) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Invalid JSON body\"}");
+        return;
+    }
+
+    if (g_ctx.config.mode != MODE_PROXY) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Proxy mode not enabled\"}");
+        return;
+    }
+
+    struct in6_addr remote_addr;
+    if (inet_pton(AF_INET6, v6_address, &remote_addr) != 1) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Invalid IPv6 address\"}");
+        return;
+    }
+
+    if (proxy_add_tcp_mapping(internal_port, &remote_addr, external_port, description) != 0) {
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Failed to create TCP mapping\"}");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response),
+             "{\"status\": \"ok\", \"internal_port\": %d, \"external_port\": %d, \"v6_address\": \"%s\"}",
+             internal_port, external_port, v6_address);
+    send_json_response(client_fd, 200, "OK", response);
+}
+
+/* API endpoint: GET /probe/udp?port=XXXX */
+static void handle_probe_udp(int client_fd, const char *path) {
+    /* Extract port from query string */
+    int port = 0;
+    const char *query = strchr(path, '?');
+    if (query && sscanf(query, "?port=%d", &port) == 1) {
+        /* Simple UDP probe - in production would use external probe service */
+        char response[256];
+        snprintf(response, sizeof(response),
+                 "{\"status\": \"probe_initiated\", \"port\": %d, "
+                 "\"note\": \"External UDP probe not implemented - use external tools to verify reachability\"}",
+                 port);
+        send_json_response(client_fd, 200, "OK", response);
+    } else {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Missing or invalid port parameter\"}");
+    }
+}
+
 static void handle_request(int client_fd, const char *request) {
     char method[16], path[256];
 
@@ -344,16 +445,23 @@ static void handle_request(int client_fd, const char *request) {
 
     log_debug("API: %s %s", method, path);
 
-    /* Handle POST requests for auth endpoints */
+    /* Handle POST requests for auth and proxy endpoints */
     if (strcmp(method, "POST") == 0) {
+        /* Extract request body */
+        const char *body_start = strstr(request, "\r\n\r\n");
+        const char *body = body_start ? body_start + 4 : "";
+
         if (strcmp(path, "/auth/login") == 0) {
-            /* Extract request body */
-            const char *body_start = strstr(request, "\r\n\r\n");
-            const char *body = body_start ? body_start + 4 : "";
             handle_auth_login(client_fd, body);
             return;
         } else if (strcmp(path, "/auth/logout") == 0) {
             handle_auth_logout(client_fd, request);
+            return;
+        } else if (strcmp(path, "/ports/udp") == 0) {
+            handle_add_udp_port(client_fd, body);
+            return;
+        } else if (strcmp(path, "/ports/tcp") == 0) {
+            handle_add_tcp_port(client_fd, body);
             return;
         }
         send_json_response(client_fd, 404, "Not Found", "{\"error\": \"Endpoint not found\"}");
@@ -373,12 +481,15 @@ static void handle_request(int client_fd, const char *request) {
             "\"service\": \"v6-gatewayd\","
             "\"version\": \"" VERSION "\","
             "\"crypto_enabled\": " "true" ","
-            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\"]"
+            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\", \"/ports/udp\", \"/ports/tcp\", \"/probe/udp\"  ]"
             "}";
         send_json_response(client_fd, 200, "OK", info);
         return;
     } else if (strcmp(path, "/health") == 0) {
         handle_health(client_fd);
+        return;
+    } else if (strncmp(path, "/probe/udp", 10) == 0) {
+        handle_probe_udp(client_fd, path);
         return;
     }
 
