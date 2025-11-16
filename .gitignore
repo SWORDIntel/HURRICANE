@@ -1,0 +1,23 @@
+# Build artifacts
+obj/
+*.o
+v6-gatewayd
+v6gw-keygen
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Runtime files
+*.pid
+*.sock
+
+# Cryptographic keys
+*.bin
+keys.*
+
+# Logs
+*.log

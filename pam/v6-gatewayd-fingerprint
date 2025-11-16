@@ -1,0 +1,5 @@
+# PAM configuration for v6-gatewayd fingerprint authentication
+# Install to /etc/pam.d/v6-gatewayd-fingerprint
+
+auth    required    pam_fprintd.so
+account required    pam_unix.so

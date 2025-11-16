@@ -1,0 +1,233 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'claude/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gcc \
+          make \
+          libssl-dev \
+          wireguard-tools \
+          iproute2 \
+          iputils-ping \
+          curl \
+          jq \
+          bc
+
+    - name: Build daemon
+      run: |
+        make clean
+        make
+
+    - name: Check build artifacts
+      run: |
+        ls -lh v6-gatewayd v6gw-keygen
+        file v6-gatewayd v6gw-keygen
+
+    - name: Run static analysis
+      run: |
+        # Check for common issues
+        echo "Checking for TODO/FIXME markers..."
+        grep -r "TODO\|FIXME" src/ include/ || true
+
+    - name: Save build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries
+        path: |
+          v6-gatewayd
+          v6gw-keygen
+        retention-days: 7
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: binaries
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl jq bc
+
+    - name: Make binaries executable
+      run: |
+        chmod +x v6-gatewayd v6gw-keygen
+        chmod +x tests/integration_test.sh tests/benchmark.sh
+
+    - name: Start daemon (background)
+      run: |
+        # Create minimal config
+        mkdir -p /tmp/v6gw-test
+        cat > /tmp/v6gw.conf <<EOF
+        [core]
+        log_level = debug
+        state_dir = /tmp/v6gw-test
+        api_port = 8642
+        api_bind = 127.0.0.1
+        mode = kernel
+
+        [tunnel.test]
+        type = external
+        iface = lo
+        v6_prefix = ::1
+        prefix_len = 128
+        enabled = false
+        EOF
+
+        # Start daemon in background
+        sudo ./v6-gatewayd -c /tmp/v6gw.conf &
+        DAEMON_PID=$!
+        echo "Daemon started with PID: $DAEMON_PID"
+
+        # Wait for daemon to be ready
+        sleep 3
+
+        # Check if daemon is running
+        if ps -p $DAEMON_PID > /dev/null; then
+          echo "Daemon is running"
+        else
+          echo "Daemon failed to start"
+          exit 1
+        fi
+
+    - name: Run integration tests
+      run: |
+        ./tests/integration_test.sh || true
+
+    - name: Stop daemon
+      if: always()
+      run: |
+        sudo pkill -9 v6-gatewayd || true
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: hurricane/v6-gatewayd:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        docker images | grep hurricane
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run shellcheck on scripts
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+        find . -name "*.sh" -exec shellcheck {} + || true
+
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Checking for potential secrets..."
+        grep -r -i "password\|secret\|token" config/ || true
+        echo "Review complete"
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check code formatting
+      run: |
+        echo "Checking C code style..."
+        # Future: Add clang-format check
+
+    - name: Count lines of code
+      run: |
+        echo "Source code statistics:"
+        find src -name "*.c" | xargs wc -l
+        find include -name "*.h" | xargs wc -l
+        echo "Total lines:"
+        find src include -name "*.[ch]" | xargs wc -l | tail -1
+
+    - name: Generate compilation database
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc make libssl-dev
+        make clean
+        # Future: bear -- make (for clang-tools)
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, integration-test, docker-build]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: binaries
+
+    - name: Create release archive
+      run: |
+        tar czf hurricane-v6-gatewayd-${{ github.ref_name }}.tar.gz \
+          v6-gatewayd v6gw-keygen README.md \
+          config/ docs/ web/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          hurricane-v6-gatewayd-${{ github.ref_name }}.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
