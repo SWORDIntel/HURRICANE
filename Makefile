@@ -177,8 +177,79 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  all       - Build the daemon (default)"
+	@echo "  deps      - Install system dependencies (requires root)"
+	@echo "  bootstrap - Install deps, then build (requires root)"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  install   - Install to system (requires root)"
 	@echo "  uninstall - Remove from system (requires root)"
 	@echo "  debug     - Build with debug symbols"
 	@echo "  help      - Show this help"
+
+# Dependency installation
+.PHONY: deps
+deps:
+	@echo "Installing system dependencies..."
+	@if [ -f /etc/debian_version ]; then \
+		echo "Detected Debian/Ubuntu system"; \
+		apt-get update; \
+		apt-get install -y \
+			gcc make pkg-config \
+			libssl-dev \
+			libcurl4-openssl-dev \
+			iproute2 iputils-ping \
+			wireguard-tools curl jq bc; \
+		echo "Core dependencies installed"; \
+		echo ""; \
+		echo "Optional dependencies (for full feature set):"; \
+		echo "  liboqs-dev        - CNSA 2.0 post-quantum crypto"; \
+		echo "  libpam0g-dev      - PAM hardware authentication"; \
+		echo "  libfprint-2-dev   - Fingerprint authentication"; \
+		echo "  libykpers-1-dev   - YubiKey authentication"; \
+		echo ""; \
+		echo "Install optional dependencies:"; \
+		echo "  sudo apt-get install liboqs-dev libpam0g-dev libfprint-2-dev libykpers-1-dev"; \
+	elif [ -f /etc/redhat-release ]; then \
+		echo "Detected RHEL/CentOS/Fedora system"; \
+		if command -v dnf >/dev/null 2>&1; then \
+			dnf install -y \
+				gcc make pkgconfig \
+				openssl-devel \
+				libcurl-devel \
+				iproute iputils \
+				wireguard-tools curl jq bc; \
+		else \
+			yum install -y \
+				gcc make pkgconfig \
+				openssl-devel \
+				libcurl-devel \
+				iproute iputils \
+				wireguard-tools curl jq bc; \
+		fi; \
+		echo "Core dependencies installed"; \
+	elif [ -f /etc/arch-release ]; then \
+		echo "Detected Arch Linux system"; \
+		pacman -Syu --needed --noconfirm \
+			gcc make pkgconf \
+			openssl \
+			curl \
+			iproute2 iputils \
+			wireguard-tools jq bc; \
+		echo "Core dependencies installed"; \
+	else \
+		echo "Unknown Linux distribution"; \
+		echo "Please manually install:"; \
+		echo "  - gcc, make, pkg-config"; \
+		echo "  - OpenSSL development libraries"; \
+		echo "  - libcurl development libraries"; \
+		echo "  - iproute2, iputils, curl"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Dependencies installed successfully!"
+	@echo "Run 'make' to build the daemon"
+
+.PHONY: bootstrap
+bootstrap: deps all
+	@echo ""
+	@echo "Bootstrap complete! Daemon built successfully."
+	@echo "Run 'sudo make install' to install to system"

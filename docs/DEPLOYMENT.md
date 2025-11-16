@@ -52,12 +52,43 @@ sudo yum install -y \
 
 ### Native Installation
 
-#### 1. Build from Source
+#### 1. Bootstrap Installation (Recommended)
+
+The fastest way to install is using the bootstrap target, which automatically installs dependencies:
 
 ```bash
 git clone https://github.com/SWORDIntel/HURRICANE.git
 cd HURRICANE
+
+# Install dependencies and build (auto-detects Debian/Ubuntu, RHEL/Fedora, Arch)
+sudo make bootstrap
+
+# Install to system
+sudo make install
+```
+
+The bootstrap process will:
+- Auto-detect your Linux distribution
+- Install all required dependencies (gcc, make, libssl-dev, libcurl-dev, etc.)
+- Build the daemon and utilities
+- List optional dependencies for advanced features
+
+#### 1b. Manual Build from Source
+
+If you prefer manual dependency management:
+
+```bash
+git clone https://github.com/SWORDIntel/HURRICANE.git
+cd HURRICANE
+
+# Install dependencies manually (see Required Packages above)
+sudo apt-get install -y gcc make libssl-dev libcurl4-openssl-dev \
+    iproute2 iputils-ping wireguard-tools curl jq bc
+
+# Build
 make
+
+# Install
 sudo make install
 ```
 

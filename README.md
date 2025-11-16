@@ -90,18 +90,46 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
 ### Prerequisites
 
 - Linux system with root access
-- GCC compiler
 - IPv4 connectivity
 - Hurricane Electric tunnel account (https://tunnelbroker.net) or other IPv6 tunnel provider
 
-### Build
+### One-Command Bootstrap (Recommended)
+
+The easiest way to get started is to use the bootstrap target, which automatically installs all dependencies and builds the daemon:
 
 ```bash
 # Clone the repository
 git clone https://github.com/SWORDIntel/HURRICANE.git
 cd HURRICANE
 
-# Build
+# Bootstrap: Install dependencies and build (requires root)
+sudo make bootstrap
+
+# Install to system
+sudo make install
+```
+
+The bootstrap process will:
+- Auto-detect your Linux distribution (Debian/Ubuntu, RHEL/CentOS/Fedora, Arch)
+- Install core dependencies (gcc, make, libssl-dev, libcurl-dev, wireguard-tools, etc.)
+- Build the daemon and utilities
+- Show optional dependencies for advanced features (CNSA 2.0, YubiKey, fingerprint auth)
+
+### Manual Build (Alternative)
+
+If you prefer to install dependencies manually:
+
+```bash
+# Install dependencies first
+# Debian/Ubuntu:
+sudo apt-get install -y gcc make libssl-dev libcurl4-openssl-dev \
+    iproute2 iputils-ping wireguard-tools curl jq bc
+
+# RHEL/CentOS/Fedora:
+sudo dnf install -y gcc make openssl-devel libcurl-devel \
+    iproute iputils wireguard-tools curl jq bc
+
+# Then build
 make
 
 # Install (requires root)
