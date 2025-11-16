@@ -56,6 +56,14 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
   - Native IPv6 socket operations through Hurricane Electric tunnel
   - See [fastport/README_IPV6.md](fastport/README_IPV6.md) for full documentation
 
+- **IPv9 Routing Integration** 🆕
+  - Dual routing support: IPv6 + IPv9 (China Decimal Network)
+  - IPVNINER integration for .chn domain resolution
+  - Switch between IPv6, IPv9, or Dual mode via API/WebUI
+  - DNS overlay routing through IPv9 servers (202.170.218.93, 61.244.5.162)
+  - Simultaneous access to both networks in Dual mode
+  - See [docs/IPV9_ROUTING_INTEGRATION.md](docs/IPV9_ROUTING_INTEGRATION.md) for details
+
 - **Production Ready**
   - Systemd integration
   - Health monitoring with automatic checks
