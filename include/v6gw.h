@@ -60,6 +60,9 @@ typedef struct {
     uint32_t rx_bytes;
     int latency_ms;
     bool reachable;
+    int health_score;      /* 0-100, higher is better */
+    int priority;          /* User-defined priority (0 = highest) */
+    bool is_primary;       /* Currently active primary tunnel */
 } tunnel_t;
 
 /* Global configuration */

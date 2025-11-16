@@ -34,11 +34,12 @@ v6_prefix = 2001:470:1234:5678::2
 prefix_len = 64
 enabled = true
 
-# WireGuard Tunnel Example (not yet implemented)
+# WireGuard Tunnel Example
+# Requires: /etc/wireguard/wg0.conf to be configured
 #[tunnel.wg0]
 #type = wireguard
 #iface = wg0
-#v6_prefix = fd00::1
+#v6_prefix = fd00:1234:5678::1
 #prefix_len = 64
 #enabled = false
 

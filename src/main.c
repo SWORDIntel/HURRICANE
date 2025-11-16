@@ -13,6 +13,8 @@
 #include "session.h"
 #include "crypto.h"
 #include "hwauth.h"
+#include "proxy.h"
+#include "socks5.h"
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,6 +93,7 @@ static void main_loop(void) {
     time_t last_health_check = 0;
     time_t last_stats_update = 0;
     time_t last_session_cleanup = 0;
+    time_t last_failover_check = 0;
 
     while (g_ctx.running) {
         time_t now = time(NULL);
@@ -100,6 +103,16 @@ static void main_loop(void) {
 
         /* Process MCP requests */
         mcp_process();
+
+        /* Process proxy requests (Mode B) */
+        if (g_ctx.config.mode == MODE_PROXY) {
+            proxy_process();
+        }
+
+        /* Process SOCKS5 requests (Mode C) */
+        if (g_ctx.config.mode == MODE_SOCKS5) {
+            socks5_process();
+        }
 
         /* Periodic health checks (every 30 seconds) */
         if (now - last_health_check >= 30) {
@@ -115,6 +128,12 @@ static void main_loop(void) {
                 tunnel_get_stats(&g_ctx.tunnels[i]);
             }
             last_stats_update = now;
+        }
+
+        /* Auto-failover check (every 60 seconds) */
+        if (g_ctx.tunnel_count > 1 && now - last_failover_check >= 60) {
+            tunnel_auto_failover(g_ctx.tunnels, g_ctx.tunnel_count);
+            last_failover_check = now;
         }
 
         /* Cleanup expired sessions (every 5 minutes) */
@@ -283,6 +302,48 @@ int main(int argc, char *argv[]) {
         mcp_start();
     }
 
+    /* Initialize proxy mode (Mode B) */
+    if (g_ctx.config.mode == MODE_PROXY) {
+        proxy_config_t proxy_config = {
+            .enabled = true,
+            .udp_base_port = 10000,
+            .tcp_base_port = 20000,
+            .max_connections = 100
+        };
+
+        if (proxy_init(&proxy_config) != 0) {
+            log_error("Failed to initialize proxy mode");
+            goto cleanup;
+        }
+
+        log_info("Proxy mode enabled (UDP base: %d, TCP base: %d)",
+                 proxy_config.udp_base_port, proxy_config.tcp_base_port);
+    }
+
+    /* Initialize SOCKS5 mode (Mode C) */
+    if (g_ctx.config.mode == MODE_SOCKS5) {
+        socks5_config_t socks5_config = {
+            .enabled = true,
+            .bind_addr = "127.0.0.1",
+            .bind_port = 1080,
+            .prefer_ipv6 = true,
+            .max_connections = 100
+        };
+
+        if (socks5_init(&socks5_config) != 0) {
+            log_error("Failed to initialize SOCKS5 mode");
+            goto cleanup;
+        }
+
+        if (socks5_start() != 0) {
+            log_error("Failed to start SOCKS5 server");
+            goto cleanup;
+        }
+
+        log_info("SOCKS5 mode enabled (listening on %s:%d)",
+                 socks5_config.bind_addr, socks5_config.bind_port);
+    }
+
     /* Initialize tunnels */
     if (init_tunnels() != 0) {
         log_error("Failed to initialize tunnels");
@@ -301,6 +362,15 @@ cleanup:
     shutdown_tunnels();
     api_cleanup();
     mcp_cleanup();
+
+    /* Cleanup exposure modes */
+    if (g_ctx.config.mode == MODE_PROXY) {
+        proxy_cleanup();
+    }
+    if (g_ctx.config.mode == MODE_SOCKS5) {
+        socks5_cleanup();
+    }
+
     health_cleanup();
     tunnel_cleanup();
 

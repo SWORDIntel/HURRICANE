@@ -8,13 +8,19 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
 
 - **Multiple Tunnel Backends**
   - Hurricane Electric 6in4 (sit tunnels)
-  - WireGuard support (planned)
+  - WireGuard support with wg-quick integration
   - External/pre-configured tunnel monitoring
 
 - **Flexible Exposure Modes**
   - **Kernel Mode** (recommended): Apps bind directly to IPv6
-  - **Proxy Mode** (planned): UDP/TCP relay for constrained environments
-  - **SOCKS5 Mode** (planned): Generic proxy for any application
+  - **Proxy Mode**: UDP/TCP relay for constrained environments
+  - **SOCKS5 Mode**: Generic proxy with IPv6 preference for any application
+
+- **Advanced Tunnel Management**
+  - Multi-tunnel failover with automatic health monitoring
+  - Dynamic tunnel selection based on latency and reliability
+  - Health scoring system (0-100) with configurable thresholds
+  - Priority-based tunnel preferences
 
 - **REST API**
   - `/health` - System health and IPv6 connectivity status
@@ -283,6 +289,71 @@ The MCP server can be used by AI assistants like Claude to interact with your IP
 }
 ```
 
+## Multi-Tunnel Failover
+
+v6-gatewayd supports automatic failover between multiple tunnels for high availability.
+
+### Health Scoring
+
+Each tunnel is continuously monitored and assigned a health score (0-100):
+
+- **Reachability**: -50 points if unreachable
+- **Latency-based scoring**:
+  - <50ms: Excellent (50 points)
+  - 50-100ms: Good (40 points)
+  - 100-200ms: Fair (25 points)
+  - 200-500ms: Poor (10 points)
+  - >500ms: Very poor (0 points)
+- **Priority bonus**: User-defined tunnel priority (0=highest) adds bonus points
+
+### Automatic Failover
+
+The daemon performs automatic failover every 60 seconds:
+
+1. Checks the health of the current primary tunnel
+2. If health drops below 30 or tunnel is down, searches for a backup
+3. Switches to the best alternative tunnel (health >= 50)
+4. Logs the failover event with health scores
+5. Updates routing automatically
+
+### Configuration
+
+Configure multiple tunnels with different priorities:
+
+```ini
+[tunnel1]
+name = he-primary
+type = he_6in4
+enabled = true
+priority = 0    # Highest priority
+
+[tunnel2]
+name = wg-backup
+type = wireguard
+enabled = true
+priority = 1    # Backup tunnel
+
+[tunnel3]
+name = he-backup2
+type = he_6in4
+enabled = true
+priority = 2    # Second backup
+```
+
+### Monitoring Failover
+
+Check tunnel health and failover status:
+
+```bash
+# View daemon logs
+journalctl -u v6-gatewayd -f
+
+# Example output:
+# [INFO] Selected primary tunnel: he-primary (health: 95)
+# [WARN] Primary tunnel he-primary health degraded: 25/100
+# [INFO] Failing over from he-primary to wg-backup (health: 25 -> 85)
+```
+
 ## Use Cases
 
 ### I2P Over IPv6
@@ -318,17 +389,24 @@ HURRICANE/
 ├── src/              # Source code
 │   ├── main.c       # Main daemon entry point
 │   ├── config.c     # Configuration parser
-│   ├── tunnel.c     # Tunnel management
+│   ├── tunnel.c     # Tunnel management with failover
 │   ├── health.c     # Health checks
 │   ├── api.c        # REST API server
 │   ├── mcp.c        # MCP server
+│   ├── proxy.c      # Proxy mode (UDP/TCP relay)
+│   ├── socks5.c     # SOCKS5 proxy mode
+│   ├── session.c    # Session management
+│   ├── crypto.c     # CNSA 2.0 cryptography
+│   ├── hwauth.c     # Hardware authentication
 │   ├── log.c        # Logging system
 │   └── util.c       # Utilities
 ├── include/          # Header files
 ├── config/           # Example configurations
 ├── systemd/          # Systemd service files
+├── docs/             # Documentation
 ├── Makefile          # Build system
-└── README.md         # This file
+├── README.md         # This file
+└── SECURITY.md       # Security architecture
 ```
 
 ### Building from Source
