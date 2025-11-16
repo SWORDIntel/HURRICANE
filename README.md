@@ -168,6 +168,84 @@ curl http://localhost:8642/tunnels
 ping6 -c 3 2001:4860:4860::8888
 ```
 
+### Hurricane Electric Auto-Update (Optional)
+
+If you have a dynamic IP address, you can use the `he-update` utility to automatically update your Hurricane Electric tunnel endpoint when your IP changes.
+
+**Requirements:**
+- libcurl development library: `sudo apt-get install libcurl4-openssl-dev`
+- Hurricane Electric tunnel account credentials
+
+**Manual Usage:**
+
+```bash
+# Auto-detect your public IP and update tunnel endpoint
+he-update -u USERNAME -p PASSWORD -t TUNNEL_ID
+
+# Force update even if IP hasn't changed
+he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -f
+
+# Specify a specific IP address
+he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -i 1.2.3.4
+
+# Verbose output
+he-update -u USERNAME -p PASSWORD -t TUNNEL_ID -v
+```
+
+**Automatic Updates with Systemd:**
+
+1. Create environment file with your credentials:
+
+```bash
+sudo cp config/v6-gatewayd-he.env.example /etc/v6-gatewayd-he.env
+sudo nano /etc/v6-gatewayd-he.env
+```
+
+2. Configure your credentials in `/etc/v6-gatewayd-he.env`:
+
+```bash
+HE_USERNAME=your_username
+HE_PASSWORD=your_password_or_update_key
+HE_TUNNEL_ID=940962
+```
+
+3. Secure the credentials file:
+
+```bash
+sudo chmod 600 /etc/v6-gatewayd-he.env
+sudo chown root:root /etc/v6-gatewayd-he.env
+```
+
+4. Install and enable the systemd timer:
+
+```bash
+# Copy service files (if not already installed via 'make install')
+sudo cp systemd/he-update.service /etc/systemd/system/
+sudo cp systemd/he-update.timer /etc/systemd/system/
+
+# Enable and start the timer (runs every 15 minutes)
+sudo systemctl daemon-reload
+sudo systemctl enable he-update.timer
+sudo systemctl start he-update.timer
+
+# Check timer status
+sudo systemctl status he-update.timer
+
+# View update logs
+sudo journalctl -u he-update -f
+```
+
+The timer will automatically:
+- Check your public IP every 15 minutes
+- Update the Hurricane Electric tunnel endpoint only if your IP has changed
+- Cache the last known IP to avoid unnecessary API calls
+- Log all updates to systemd journal
+
+**Notes:**
+- The update client caches your IP in `/var/lib/v6-gatewayd/he-ip.cache`
+- Updates only happen when your IP actually changes (no unnecessary API calls)
+- If libcurl is not available during build, `he-update` will be skipped (daemon still builds normally)
+
 ## Configuration Reference
 
 ### Core Settings

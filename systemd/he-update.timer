@@ -1,0 +1,18 @@
+[Unit]
+Description=Hurricane Electric Tunnel Endpoint Update Timer
+Documentation=https://github.com/SWORDIntel/HURRICANE
+Requires=he-update.service
+
+[Timer]
+# Run every 15 minutes
+OnBootSec=2min
+OnUnitActiveSec=15min
+
+# Randomize startup by 1 minute to avoid thundering herd
+RandomizedDelaySec=1min
+
+# Don't run if missed (e.g., system was off)
+Persistent=false
+
+[Install]
+WantedBy=timers.target

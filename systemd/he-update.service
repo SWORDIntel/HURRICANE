@@ -1,0 +1,41 @@
+[Unit]
+Description=Hurricane Electric Tunnel Endpoint Update
+Documentation=https://github.com/SWORDIntel/HURRICANE
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+
+# Read HE credentials from environment file
+EnvironmentFile=/etc/v6-gatewayd-he.env
+
+# Execute update with credentials from environment
+# If HE_IP is set, use it; otherwise auto-detect
+ExecStart=/bin/bash -c 'if [ -n "$HE_IP" ]; then \
+    /usr/local/bin/he-update -u "$HE_USERNAME" -p "$HE_PASSWORD" -t "$HE_TUNNEL_ID" -i "$HE_IP" -c /var/lib/v6-gatewayd/he-ip.cache -v; \
+else \
+    /usr/local/bin/he-update -u "$HE_USERNAME" -p "$HE_PASSWORD" -t "$HE_TUNNEL_ID" -c /var/lib/v6-gatewayd/he-ip.cache -v; \
+fi'
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/v6-gatewayd
+
+# Network access required
+PrivateNetwork=false
+
+# Resource limits
+MemoryMax=64M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=he-update
+
+[Install]
+WantedBy=multi-user.target

@@ -36,6 +36,15 @@ else
     $(warning libfprint not found - fingerprint authentication disabled)
 endif
 
+# Check for libcurl (for he-update utility)
+LIBCURL_AVAILABLE := $(shell pkg-config --exists libcurl && echo yes || echo no)
+ifeq ($(LIBCURL_AVAILABLE),yes)
+    $(info Building with libcurl support (he-update utility enabled))
+else
+    $(warning libcurl not found - he-update utility disabled)
+    $(warning For Hurricane Electric auto-update support, install libcurl4-openssl-dev)
+endif
+
 # Check for libykpers (YubiKey)
 LIBYKPERS_AVAILABLE := $(shell pkg-config --exists ykpers-1 && echo yes || echo no)
 ifeq ($(LIBYKPERS_AVAILABLE),yes)
@@ -58,8 +67,8 @@ SRCDIR = src
 INCDIR = include
 OBJDIR = obj
 
-# Daemon sources (exclude v6gw-keygen.c)
-DAEMON_SOURCES = $(filter-out $(SRCDIR)/v6gw-keygen.c, $(wildcard $(SRCDIR)/*.c))
+# Daemon sources (exclude v6gw-keygen.c and he-update.c)
+DAEMON_SOURCES = $(filter-out $(SRCDIR)/v6gw-keygen.c $(SRCDIR)/he-update.c, $(wildcard $(SRCDIR)/*.c))
 DAEMON_OBJECTS = $(DAEMON_SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Keygen sources (main + shared modules)
@@ -67,13 +76,18 @@ KEYGEN_OBJECTS = $(OBJDIR)/v6gw-keygen.o $(OBJDIR)/crypto.o $(OBJDIR)/log.o
 
 TARGET_DAEMON = v6-gatewayd
 TARGET_KEYGEN = v6gw-keygen
+TARGET_HEUPDATE = he-update
 
 # Header dependencies
 INCLUDES = -I$(INCDIR)
 
 .PHONY: all clean install uninstall dirs
 
+ifeq ($(LIBCURL_AVAILABLE),yes)
+all: dirs $(TARGET_DAEMON) $(TARGET_KEYGEN) $(TARGET_HEUPDATE)
+else
 all: dirs $(TARGET_DAEMON) $(TARGET_KEYGEN)
+endif
 
 dirs:
 	@mkdir -p $(OBJDIR)
@@ -86,17 +100,36 @@ $(TARGET_KEYGEN): $(KEYGEN_OBJECTS)
 	$(CC) $(KEYGEN_OBJECTS) -o $@ $(LDFLAGS)
 	@echo "Built $(TARGET_KEYGEN) successfully"
 
+ifeq ($(LIBCURL_AVAILABLE),yes)
+$(TARGET_HEUPDATE): $(OBJDIR)/he-update.o
+	$(CC) $(OBJDIR)/he-update.o -o $@ -lcurl
+	@echo "Built $(TARGET_HEUPDATE) successfully"
+
+$(OBJDIR)/he-update.o: $(SRCDIR)/he-update.c
+	$(CC) $(CFLAGS) -c $< -o $@
+endif
+
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
-	rm -rf $(OBJDIR) $(TARGET_DAEMON) $(TARGET_KEYGEN)
+	rm -rf $(OBJDIR) $(TARGET_DAEMON) $(TARGET_KEYGEN) $(TARGET_HEUPDATE)
 	@echo "Cleaned build artifacts"
 
+ifeq ($(LIBCURL_AVAILABLE),yes)
+install: $(TARGET_DAEMON) $(TARGET_KEYGEN) $(TARGET_HEUPDATE)
+else
 install: $(TARGET_DAEMON) $(TARGET_KEYGEN)
+endif
 	@echo "Installing v6-gatewayd with CNSA 2.0 crypto..."
 	install -D -m 755 $(TARGET_DAEMON) $(BINDIR)/$(TARGET_DAEMON)
 	install -D -m 755 $(TARGET_KEYGEN) $(BINDIR)/$(TARGET_KEYGEN)
+ifeq ($(LIBCURL_AVAILABLE),yes)
+	install -D -m 755 $(TARGET_HEUPDATE) $(BINDIR)/$(TARGET_HEUPDATE)
+	install -D -m 644 systemd/he-update.service $(SYSTEMDDIR)/he-update.service
+	install -D -m 644 systemd/he-update.timer $(SYSTEMDDIR)/he-update.timer
+	install -D -m 644 config/v6-gatewayd-he.env.example $(SYSCONFDIR)/v6-gatewayd-he.env.example
+endif
 	install -D -m 644 config/v6-gatewayd.conf.example $(SYSCONFDIR)/v6-gatewayd.conf.example
 	install -D -m 644 systemd/v6-gatewayd.service $(SYSTEMDDIR)/v6-gatewayd.service
 	install -D -m 644 web/index.html $(WEBDIR)/index.html
@@ -113,11 +146,25 @@ install: $(TARGET_DAEMON) $(TARGET_KEYGEN)
 	@echo "     sudo systemctl daemon-reload"
 	@echo "     sudo systemctl enable v6-gatewayd"
 	@echo "     sudo systemctl start v6-gatewayd"
+ifeq ($(LIBCURL_AVAILABLE),yes)
+	@echo ""
+	@echo "Optional: Configure Hurricane Electric auto-update (for dynamic IPs):"
+	@echo "5. Setup HE credentials:"
+	@echo "     sudo cp $(SYSCONFDIR)/v6-gatewayd-he.env.example $(SYSCONFDIR)/v6-gatewayd-he.env"
+	@echo "     sudo nano $(SYSCONFDIR)/v6-gatewayd-he.env"
+	@echo "     sudo chmod 600 $(SYSCONFDIR)/v6-gatewayd-he.env"
+	@echo "6. Enable auto-update timer:"
+	@echo "     sudo systemctl enable he-update.timer"
+	@echo "     sudo systemctl start he-update.timer"
+endif
 
 uninstall:
 	rm -f $(BINDIR)/$(TARGET_DAEMON)
 	rm -f $(BINDIR)/$(TARGET_KEYGEN)
+	rm -f $(BINDIR)/$(TARGET_HEUPDATE)
 	rm -f $(SYSTEMDDIR)/v6-gatewayd.service
+	rm -f $(SYSTEMDDIR)/he-update.service
+	rm -f $(SYSTEMDDIR)/he-update.timer
 	@echo "Uninstalled v6-gatewayd (config and state preserved)"
 
 # Development targets

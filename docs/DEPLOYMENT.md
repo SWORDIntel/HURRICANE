@@ -32,15 +32,19 @@ This guide covers production deployment options, including Docker, systemd, and 
 # Debian/Ubuntu
 sudo apt-get install -y \
     gcc make libssl-dev \
+    libcurl4-openssl-dev \
     iproute2 iputils-ping \
     wireguard-tools curl
 
 # RHEL/CentOS
 sudo yum install -y \
     gcc make openssl-devel \
+    libcurl-devel \
     iproute iputils \
     wireguard-tools curl
 ```
+
+**Note:** `libcurl4-openssl-dev` (Debian/Ubuntu) or `libcurl-devel` (RHEL/CentOS) is required for the `he-update` utility. If not installed, the daemon will still build normally, but the auto-update client will be skipped.
 
 ---
 
