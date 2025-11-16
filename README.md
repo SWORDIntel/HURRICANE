@@ -655,27 +655,45 @@ Run a Tor relay with IPv6 connectivity:
 
 ```
 HURRICANE/
-├── src/              # Source code
-│   ├── main.c       # Main daemon entry point
-│   ├── config.c     # Configuration parser
-│   ├── tunnel.c     # Tunnel management with failover
-│   ├── health.c     # Health checks
-│   ├── api.c        # REST API server
-│   ├── mcp.c        # MCP server
-│   ├── proxy.c      # Proxy mode (UDP/TCP relay)
-│   ├── socks5.c     # SOCKS5 proxy mode
-│   ├── session.c    # Session management
-│   ├── crypto.c     # CNSA 2.0 cryptography
-│   ├── hwauth.c     # Hardware authentication
-│   ├── log.c        # Logging system
-│   └── util.c       # Utilities
-├── include/          # Header files
-├── config/           # Example configurations
-├── systemd/          # Systemd service files
-├── docs/             # Documentation
-├── Makefile          # Build system
-├── README.md         # This file
-└── SECURITY.md       # Security architecture
+├── src/                  # Source code
+│   ├── main.c           # Main daemon entry point
+│   ├── config.c         # Configuration parser
+│   ├── tunnel.c         # Tunnel management with failover
+│   ├── health.c         # Health checks
+│   ├── api.c            # REST API server
+│   ├── mcp.c            # MCP server
+│   ├── proxy.c          # Proxy mode (UDP/TCP relay)
+│   ├── socks5.c         # SOCKS5 proxy mode
+│   ├── session.c        # Session management
+│   ├── crypto.c         # CNSA 2.0 cryptography
+│   ├── hwauth.c         # Hardware authentication
+│   ├── log.c            # Logging system
+│   └── util.c           # Utilities
+├── include/              # Header files
+├── config/               # Example configurations
+│   ├── v6-gatewayd.conf.example
+│   ├── mullvad-example.conf
+│   └── prometheus.yml   # Prometheus scrape config
+├── systemd/              # Systemd service files
+│   └── v6-gatewayd.service  # Hardened systemd unit
+├── web/                  # TEMPEST WebUI
+│   └── index.html       # Single-page web dashboard
+├── tests/                # Testing suite
+│   ├── integration_test.sh  # API integration tests
+│   └── benchmark.sh     # Performance benchmarks
+├── docs/                 # Documentation
+│   ├── MULLVAD.md       # Mullvad VPN guide
+│   ├── WEBUI.md         # WebUI documentation
+│   ├── AUTHENTICATION.md # Auth guide
+│   └── DEPLOYMENT.md    # Production deployment
+├── .github/              # CI/CD workflows
+│   └── workflows/
+│       └── ci.yml       # GitHub Actions pipeline
+├── Dockerfile            # Docker container image
+├── docker-compose.yml    # Docker Compose stack
+├── Makefile              # Build system
+├── README.md             # This file
+└── SECURITY.md           # Security architecture
 ```
 
 ### Building from Source
@@ -711,6 +729,100 @@ v6-gatewayd is designed for minimal overhead:
 - **CPU Usage:** <1% on idle, <5% under load
 - **Latency:** <1ms API response time
 - **Tunnel Overhead:** Native kernel routing (zero-copy where possible)
+
+## Testing & Quality Assurance
+
+### Integration Tests
+
+Run the comprehensive integration test suite:
+
+```bash
+./tests/integration_test.sh
+```
+
+Tests include:
+- API endpoint validation (health, config, logs, metrics)
+- JSON response format verification
+- Prometheus metrics format validation
+- WebUI content validation
+- Error handling and edge cases
+
+### Performance Benchmarks
+
+Measure API latency and throughput:
+
+```bash
+./tests/benchmark.sh
+```
+
+Benchmarks measure:
+- API endpoint latency (avg/min/max)
+- Concurrent request handling
+- Requests per second throughput
+- Memory usage
+- WebUI load time
+
+**Expected Results:**
+- API latency: <50ms average
+- Throughput: >100 req/s
+- Memory usage: <10MB RSS
+
+### Continuous Integration
+
+GitHub Actions workflow automatically:
+- Builds on every commit
+- Runs integration tests
+- Builds Docker images
+- Performs security scans
+- Creates releases for tagged commits
+
+View CI status: `.github/workflows/ci.yml`
+
+## Deployment
+
+### Quick Deploy
+
+**Native:**
+```bash
+make && sudo make install
+sudo systemctl start v6-gatewayd
+```
+
+**Docker:**
+```bash
+docker-compose up -d
+```
+
+**With Monitoring:**
+```bash
+docker-compose --profile monitoring up -d
+```
+
+### Production Deployment
+
+See **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** for comprehensive production deployment guide including:
+
+- Docker deployment with monitoring stack
+- Systemd service hardening
+- Security best practices
+- Performance tuning
+- Backup & recovery procedures
+- Troubleshooting guide
+
+### Docker Features
+
+**Included in docker-compose.yml:**
+- v6-gatewayd daemon with health checks
+- Prometheus metrics collection
+- Grafana dashboards
+- Automated restart policies
+- Volume management for persistence
+
+**Access:**
+- API: http://localhost:8642
+- WebUI: http://localhost:8642/ui
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin)
 
 ## Security
 
