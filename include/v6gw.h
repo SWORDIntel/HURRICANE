@@ -10,8 +10,9 @@
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <time.h>
+#include "crypto.h"
 
-#define VERSION "1.0.0"
+#define VERSION "1.0.0-CNSA2.0"
 #define MAX_TUNNELS 16
 #define MAX_PATH 256
 #define MAX_LINE 1024
@@ -70,6 +71,8 @@ typedef struct {
     exposure_mode_t mode;
     tunnel_config_t tunnels[MAX_TUNNELS];
     int tunnel_count;
+    bool crypto_enabled;
+    char crypto_keyfile[MAX_PATH];
 } config_t;
 
 /* Global daemon context */
@@ -79,6 +82,10 @@ typedef struct {
     int tunnel_count;
     bool running;
     int api_socket;
+    /* CNSA 2.0 Cryptographic keys */
+    mlkem_keypair_t kem_keys;
+    mldsa_keypair_t dsa_keys;
+    bool crypto_initialized;
 } daemon_ctx_t;
 
 /* Global context */

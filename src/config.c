@@ -62,6 +62,8 @@ int config_parse(const char *filename, config_t *config) {
     snprintf(config->api_bind, sizeof(config->api_bind), "127.0.0.1");
     config->mode = MODE_KERNEL;
     config->tunnel_count = 0;
+    config->crypto_enabled = false;
+    snprintf(config->crypto_keyfile, sizeof(config->crypto_keyfile), "/var/lib/v6-gatewayd/keys.bin");
 
     char line[MAX_LINE];
     char section[64] = "";
@@ -115,6 +117,12 @@ int config_parse(const char *filename, config_t *config) {
 
             if (strcmp(section, "core") == 0) {
                 parse_core_section(config, key, value);
+            } else if (strcmp(section, "crypto") == 0) {
+                if (strcmp(key, "crypto_enabled") == 0) {
+                    config->crypto_enabled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
+                } else if (strcmp(key, "crypto_keyfile") == 0) {
+                    snprintf(config->crypto_keyfile, sizeof(config->crypto_keyfile), "%s", value);
+                }
             } else if (strncmp(section, "tunnel.", 7) == 0 && current_tunnel >= 0) {
                 parse_tunnel_section(&config->tunnels[current_tunnel], key, value);
             } else if (strcmp(section, "exposure") == 0) {
