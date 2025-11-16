@@ -10,6 +10,9 @@
 #include "health.h"
 #include "api.h"
 #include "mcp.h"
+#include "session.h"
+#include "crypto.h"
+#include "hwauth.h"
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +90,7 @@ static void shutdown_tunnels(void) {
 static void main_loop(void) {
     time_t last_health_check = 0;
     time_t last_stats_update = 0;
+    time_t last_session_cleanup = 0;
 
     while (g_ctx.running) {
         time_t now = time(NULL);
@@ -111,6 +115,12 @@ static void main_loop(void) {
                 tunnel_get_stats(&g_ctx.tunnels[i]);
             }
             last_stats_update = now;
+        }
+
+        /* Cleanup expired sessions (every 5 minutes) */
+        if (g_ctx.crypto_initialized && now - last_session_cleanup >= 300) {
+            session_cleanup_expired();
+            last_session_cleanup = now;
         }
 
         /* Sleep to avoid busy loop */
@@ -178,6 +188,52 @@ int main(int argc, char *argv[]) {
     }
 
     config_print(&g_ctx.config);
+
+    /* Initialize cryptography if enabled */
+    if (g_ctx.config.crypto_enabled) {
+        log_info("Initializing CNSA 2.0 cryptography");
+
+        if (crypto_init() != 0) {
+            log_error("Failed to initialize cryptography");
+            return 1;
+        }
+
+        /* Load cryptographic keys */
+        if (crypto_load_keys(g_ctx.config.crypto_keyfile,
+                            &g_ctx.kem_keys,
+                            &g_ctx.dsa_keys) != 0) {
+            log_error("Failed to load keys from %s", g_ctx.config.crypto_keyfile);
+            log_error("Generate keys with: v6gw-keygen -o %s", g_ctx.config.crypto_keyfile);
+            crypto_cleanup();
+            return 1;
+        }
+
+        g_ctx.crypto_initialized = true;
+        log_info("Loaded CNSA 2.0 keys (ML-KEM-1024, ML-DSA-87)");
+
+        /* Initialize session management */
+        if (session_init() != 0) {
+            log_error("Failed to initialize session management");
+            crypto_cleanup();
+            return 1;
+        }
+
+        /* Initialize hardware authentication */
+        hwauth_config_t hwauth_config = {
+            .required_methods = HWAUTH_TYPE_BOTH,  /* Fingerprint OR YubiKey */
+            .allow_fallback = true,
+            .timeout_seconds = 30
+        };
+
+        if (hwauth_init(&hwauth_config) != 0) {
+            log_warn("Hardware authentication not available");
+            /* Continue without hardware auth */
+        }
+
+        log_info("Security subsystems initialized");
+    } else {
+        log_warn("Cryptography disabled - API will be unauthenticated");
+    }
 
     /* Check for root privileges (needed for tunnel management) */
     if (geteuid() != 0) {
@@ -247,6 +303,13 @@ cleanup:
     mcp_cleanup();
     health_cleanup();
     tunnel_cleanup();
+
+    /* Cleanup security subsystems */
+    if (g_ctx.crypto_initialized) {
+        session_cleanup();
+        hwauth_cleanup();
+        crypto_cleanup();
+    }
 
     remove_pidfile("/var/run/v6-gatewayd.pid");
 

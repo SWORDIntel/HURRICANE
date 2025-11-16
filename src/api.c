@@ -1,11 +1,14 @@
 /*
  * REST API server implementation
- * Simple HTTP+JSON API for tunnel management and status
+ * HTTP+JSON API with CNSA 2.0 authentication
  */
 
 #include "api.h"
 #include "log.h"
 #include "health.h"
+#include "session.h"
+#include "crypto.h"
+#include "hwauth.h"
 #include "v6gw.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +22,51 @@
 
 static int api_sockfd = -1;
 static struct sockaddr_in api_addr;
+
+/* Extract session ID from Authorization header */
+static int extract_session_id(const char *request, uint8_t *session_id) {
+    const char *auth_header = strstr(request, "Authorization: Bearer ");
+    if (!auth_header) {
+        return -1;
+    }
+
+    auth_header += 22;  /* Skip "Authorization: Bearer " */
+
+    /* Session ID is hex-encoded */
+    char hex_id[SESSION_ID_BYTES * 2 + 1];
+    if (sscanf(auth_header, "%64s", hex_id) != 1) {
+        return -1;
+    }
+
+    /* Convert hex to bytes */
+    for (int i = 0; i < SESSION_ID_BYTES; i++) {
+        if (sscanf(hex_id + (i * 2), "%2hhx", &session_id[i]) != 1) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/* Check if request is authenticated */
+static session_t* authenticate_request(const char *request) {
+    if (!g_ctx.config.crypto_enabled) {
+        return NULL;  /* Auth disabled, allow request */
+    }
+
+    uint8_t session_id[SESSION_ID_BYTES];
+    if (extract_session_id(request, session_id) != 0) {
+        return NULL;
+    }
+
+    session_t *session = NULL;
+    if (session_validate(session_id, &session) != 0) {
+        return NULL;
+    }
+
+    session_touch(session);
+    return session;
+}
 
 /* Simple HTTP response builder */
 static void send_http_response(int client_fd, int status_code, const char *status_text,
@@ -153,6 +201,138 @@ static void handle_tunnels(int client_fd) {
     send_json_response(client_fd, 200, "OK", json);
 }
 
+/* API endpoint: POST /auth/login */
+static void handle_auth_login(int client_fd, const char *request_body) {
+    if (!g_ctx.config.crypto_enabled || !g_ctx.crypto_initialized) {
+        send_json_response(client_fd, 503, "Service Unavailable",
+                          "{\"error\": \"Authentication not available\"}");
+        return;
+    }
+
+    /* Parse username from request body (simple JSON parsing) */
+    char username[256] = "root";  /* Default for now */
+    const char *user_field = strstr(request_body, "\"username\":");
+    if (user_field) {
+        sscanf(user_field, "\"username\":\"%255[^\"]\"", username);
+    }
+
+    /* Perform hardware authentication */
+    hwauth_result_t hw_result;
+    if (hwauth_authenticate(username, &hw_result) != 0) {
+        log_warn("Hardware authentication failed for user '%s'", username);
+        send_json_response(client_fd, 401, "Unauthorized",
+                          "{\"error\": \"Hardware authentication required\"}");
+        return;
+    }
+
+    /* Generate ML-KEM-1024 shared secret */
+    uint8_t ciphertext[MLKEM_1024_CIPHERTEXT_BYTES];
+    uint8_t shared_secret[MLKEM_1024_SHARED_SECRET_BYTES];
+
+    if (crypto_mlkem_encapsulate(g_ctx.kem_keys.public_key, ciphertext, shared_secret) != 0) {
+        log_error("Failed to generate shared secret");
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Cryptographic failure\"}");
+        return;
+    }
+
+    /* Create session */
+    session_t *session = NULL;
+    if (session_create(username, shared_secret, hw_result.method_used, &session) != 0) {
+        log_error("Failed to create session for user '%s'", username);
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Session creation failed\"}");
+        return;
+    }
+
+    /* Create authentication token */
+    crypto_token_t token;
+    if (crypto_create_token(&g_ctx.dsa_keys, &token) != 0) {
+        log_error("Failed to create auth token");
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Token creation failed\"}");
+        return;
+    }
+
+    session->auth_token = token;
+
+    /* Return session ID (hex-encoded) */
+    char session_id_hex[SESSION_ID_BYTES * 2 + 1];
+    for (int i = 0; i < SESSION_ID_BYTES; i++) {
+        sprintf(session_id_hex + (i * 2), "%02x", session->session_id[i]);
+    }
+    session_id_hex[SESSION_ID_BYTES * 2] = '\0';
+
+    char json[2048];
+    snprintf(json, sizeof(json),
+        "{\n"
+        "  \"status\": \"authenticated\",\n"
+        "  \"username\": \"%s\",\n"
+        "  \"session_id\": \"%s\",\n"
+        "  \"auth_method\": \"%s\",\n"
+        "  \"expires\": %ld\n"
+        "}",
+        session->username,
+        session_id_hex,
+        (hw_result.method_used == HWAUTH_TYPE_FINGERPRINT) ? "fingerprint" : "yubikey",
+        session->expires);
+
+    log_info("User '%s' authenticated successfully via %s",
+             username,
+             (hw_result.method_used == HWAUTH_TYPE_FINGERPRINT) ? "fingerprint" : "yubikey");
+
+    send_json_response(client_fd, 200, "OK", json);
+}
+
+/* API endpoint: POST /auth/logout */
+static void handle_auth_logout(int client_fd, const char *request) {
+    uint8_t session_id[SESSION_ID_BYTES];
+    if (extract_session_id(request, session_id) != 0) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Invalid session\"}");
+        return;
+    }
+
+    if (session_destroy(session_id) == 0) {
+        send_json_response(client_fd, 200, "OK",
+                          "{\"status\": \"logged_out\"}");
+    } else {
+        send_json_response(client_fd, 404, "Not Found",
+                          "{\"error\": \"Session not found\"}");
+    }
+}
+
+/* API endpoint: GET /auth/status */
+static void handle_auth_status(int client_fd, const char *request) {
+    session_t *session = authenticate_request(request);
+
+    if (!session) {
+        send_json_response(client_fd, 401, "Unauthorized",
+                          "{\"error\": \"Not authenticated\"}");
+        return;
+    }
+
+    char json[1024];
+    snprintf(json, sizeof(json),
+        "{\n"
+        "  \"authenticated\": true,\n"
+        "  \"username\": \"%s\",\n"
+        "  \"auth_method\": \"%s\",\n"
+        "  \"created\": %ld,\n"
+        "  \"expires\": %ld,\n"
+        "  \"last_activity\": %ld,\n"
+        "  \"request_count\": %u\n"
+        "}",
+        session->username,
+        (session->auth_method == HWAUTH_TYPE_FINGERPRINT) ? "fingerprint" : "yubikey",
+        session->created,
+        session->expires,
+        session->last_activity,
+        session->request_count);
+
+    send_json_response(client_fd, 200, "OK", json);
+}
+
 /* Route incoming HTTP request */
 static void handle_request(int client_fd, const char *request) {
     char method[16], path[256];
@@ -164,25 +344,65 @@ static void handle_request(int client_fd, const char *request) {
 
     log_debug("API: %s %s", method, path);
 
-    if (strcmp(method, "GET") != 0) {
-        send_json_response(client_fd, 405, "Method Not Allowed",
-                          "{\"error\": \"Only GET method is supported\"}");
+    /* Handle POST requests for auth endpoints */
+    if (strcmp(method, "POST") == 0) {
+        if (strcmp(path, "/auth/login") == 0) {
+            /* Extract request body */
+            const char *body_start = strstr(request, "\r\n\r\n");
+            const char *body = body_start ? body_start + 4 : "";
+            handle_auth_login(client_fd, body);
+            return;
+        } else if (strcmp(path, "/auth/logout") == 0) {
+            handle_auth_logout(client_fd, request);
+            return;
+        }
+        send_json_response(client_fd, 404, "Not Found", "{\"error\": \"Endpoint not found\"}");
         return;
     }
 
-    if (strcmp(path, "/health") == 0) {
-        handle_health(client_fd);
-    } else if (strcmp(path, "/v6/address") == 0) {
-        handle_v6_address(client_fd);
-    } else if (strcmp(path, "/tunnels") == 0) {
-        handle_tunnels(client_fd);
-    } else if (strcmp(path, "/") == 0) {
+    /* Handle GET requests */
+    if (strcmp(method, "GET") != 0) {
+        send_json_response(client_fd, 405, "Method Not Allowed",
+                          "{\"error\": \"Method not supported\"}");
+        return;
+    }
+
+    /* Public endpoints (no auth required) */
+    if (strcmp(path, "/") == 0) {
         const char *info = "{"
             "\"service\": \"v6-gatewayd\","
             "\"version\": \"" VERSION "\","
-            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\"]"
+            "\"crypto_enabled\": " "true" ","
+            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\"]"
             "}";
         send_json_response(client_fd, 200, "OK", info);
+        return;
+    } else if (strcmp(path, "/health") == 0) {
+        handle_health(client_fd);
+        return;
+    }
+
+    /* Auth status endpoint */
+    if (strcmp(path, "/auth/status") == 0) {
+        handle_auth_status(client_fd, request);
+        return;
+    }
+
+    /* Protected endpoints - require authentication if crypto enabled */
+    if (g_ctx.config.crypto_enabled) {
+        session_t *session = authenticate_request(request);
+        if (!session) {
+            send_json_response(client_fd, 401, "Unauthorized",
+                              "{\"error\": \"Authentication required\"}");
+            return;
+        }
+    }
+
+    /* Handle protected endpoints */
+    if (strcmp(path, "/v6/address") == 0) {
+        handle_v6_address(client_fd);
+    } else if (strcmp(path, "/tunnels") == 0) {
+        handle_tunnels(client_fd);
     } else {
         send_json_response(client_fd, 404, "Not Found", "{\"error\": \"Endpoint not found\"}");
     }
