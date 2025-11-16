@@ -435,6 +435,58 @@ static void handle_probe_udp(int client_fd, const char *path) {
     }
 }
 
+/* API endpoint: GET /ui - Serve TEMPEST WebUI */
+static void handle_webui(int client_fd) {
+    /* Serve the static HTML file */
+    FILE *fp = fopen("/usr/local/share/v6-gatewayd/web/index.html", "r");
+    if (!fp) {
+        /* Fallback to local path during development */
+        fp = fopen("web/index.html", "r");
+    }
+
+    if (!fp) {
+        send_json_response(client_fd, 404, "Not Found",
+                          "{\"error\": \"WebUI not found\"}");
+        return;
+    }
+
+    /* Read file content */
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char *content = malloc(file_size + 1);
+    if (!content) {
+        fclose(fp);
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Memory allocation failed\"}");
+        return;
+    }
+
+    size_t bytes_read = fread(content, 1, file_size, fp);
+    content[bytes_read] = '\0';
+    fclose(fp);
+
+    /* Send HTTP response with security headers */
+    char response_headers[1024];
+    snprintf(response_headers, sizeof(response_headers),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "Content-Length: %ld\r\n"
+        "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;\r\n"
+        "X-Content-Type-Options: nosniff\r\n"
+        "X-Frame-Options: DENY\r\n"
+        "Referrer-Policy: no-referrer\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        bytes_read);
+
+    send(client_fd, response_headers, strlen(response_headers), 0);
+    send(client_fd, content, bytes_read, 0);
+
+    free(content);
+}
+
 static void handle_request(int client_fd, const char *request) {
     char method[16], path[256];
 
@@ -481,9 +533,12 @@ static void handle_request(int client_fd, const char *request) {
             "\"service\": \"v6-gatewayd\","
             "\"version\": \"" VERSION "\","
             "\"crypto_enabled\": " "true" ","
-            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\", \"/ports/udp\", \"/ports/tcp\", \"/probe/udp\"  ]"
+            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\", \"/ports/udp\", \"/ports/tcp\", \"/probe/udp\", \"/ui\"]"
             "}";
         send_json_response(client_fd, 200, "OK", info);
+        return;
+    } else if (strcmp(path, "/ui") == 0) {
+        handle_webui(client_fd);
         return;
     } else if (strcmp(path, "/health") == 0) {
         handle_health(client_fd);

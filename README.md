@@ -27,6 +27,16 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
   - `/health` - System health and IPv6 connectivity status
   - `/v6/address` - Get available IPv6 addresses and reachability
   - `/tunnels` - List all tunnels and their states
+  - `/ports/udp`, `/ports/tcp` - Dynamic proxy port management
+  - `/ui` - TEMPEST-themed web interface
+
+- **TEMPEST WebUI** (Class C Compliant)
+  - Dark military-themed web dashboard ([docs/WEBUI.md](docs/WEBUI.md))
+  - Real-time tunnel monitoring with auto-refresh
+  - Health score visualization
+  - Activity log viewer
+  - Security-hardened (CSP, local-only, no external resources)
+  - Zero external dependencies
 
 - **MCP Server** (Model Context Protocol)
   - Local-only Unix socket interface for AI/automation access

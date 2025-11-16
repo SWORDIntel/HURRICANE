@@ -51,6 +51,7 @@ BINDIR = $(PREFIX)/bin
 SYSCONFDIR = /etc
 STATEDIR = /var/lib/v6-gatewayd
 SYSTEMDDIR = /etc/systemd/system
+WEBDIR = $(PREFIX)/share/v6-gatewayd/web
 
 # Source files
 SRCDIR = src
@@ -98,6 +99,7 @@ install: $(TARGET_DAEMON) $(TARGET_KEYGEN)
 	install -D -m 755 $(TARGET_KEYGEN) $(BINDIR)/$(TARGET_KEYGEN)
 	install -D -m 644 config/v6-gatewayd.conf.example $(SYSCONFDIR)/v6-gatewayd.conf.example
 	install -D -m 644 systemd/v6-gatewayd.service $(SYSTEMDDIR)/v6-gatewayd.service
+	install -D -m 644 web/index.html $(WEBDIR)/index.html
 	mkdir -p $(STATEDIR)
 	@echo "Installation complete!"
 	@echo "1. Generate CNSA 2.0 keys:"
