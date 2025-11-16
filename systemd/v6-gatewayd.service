@@ -1,0 +1,34 @@
+[Unit]
+Description=HURRICANE v6-gatewayd - IPv6 Tunnel Gateway
+Documentation=https://github.com/SWORDIntel/HURRICANE
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/v6-gatewayd -f -c /etc/v6-gatewayd.conf
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/v6-gatewayd /var/run
+
+# Network capabilities (required for tunnel management)
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+
+# Run as root (needed for tunnel creation)
+User=root
+Group=root
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=v6-gatewayd
+
+[Install]
+WantedBy=multi-user.target

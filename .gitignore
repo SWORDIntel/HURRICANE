@@ -1,0 +1,18 @@
+# Build artifacts
+obj/
+*.o
+v6-gatewayd
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Runtime files
+*.pid
+*.sock
+
+# Logs
+*.log

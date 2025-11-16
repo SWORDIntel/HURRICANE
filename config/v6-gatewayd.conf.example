@@ -1,0 +1,44 @@
+# HURRICANE v6-gatewayd Configuration
+# Copy to /etc/v6-gatewayd.conf and edit
+
+[core]
+log_level = info
+state_dir = /var/lib/v6-gatewayd
+api_port = 8642
+api_bind = 127.0.0.1
+
+[exposure]
+# Mode: kernel, proxy, or socks5
+# kernel: Apps bind directly to IPv6 (recommended)
+# proxy: Daemon provides UDP/TCP relay
+# socks5: Daemon provides SOCKS5 proxy
+mode = kernel
+
+# Hurricane Electric 6in4 Tunnel Example
+[tunnel.he]
+type = he_6in4
+iface = he0
+# Your tunnel server IPv4 address (from tunnelbroker.net)
+endpoint_ipv4 = 216.66.80.26
+# Your local/WAN IPv4 address (or leave empty for auto-detect)
+local_ipv4 =
+# Your allocated IPv6 /64 prefix
+v6_prefix = 2001:470:1234:5678::2
+prefix_len = 64
+enabled = true
+
+# WireGuard Tunnel Example (not yet implemented)
+#[tunnel.wg0]
+#type = wireguard
+#iface = wg0
+#v6_prefix = fd00::1
+#prefix_len = 64
+#enabled = false
+
+# External Pre-configured Tunnel Example
+#[tunnel.external]
+#type = external
+#iface = tun0
+#v6_prefix = 2001:db8::1
+#prefix_len = 64
+#enabled = false
