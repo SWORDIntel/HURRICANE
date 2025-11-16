@@ -21,6 +21,7 @@ typedef struct {
     bool active;
     uint64_t tx_bytes;
     uint64_t rx_bytes;
+    int socket_fd;         /* Local listening socket */
 } proxy_mapping_t;
 
 /* Proxy mode types */
