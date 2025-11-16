@@ -61,6 +61,7 @@ SYSCONFDIR = /etc
 STATEDIR = /var/lib/v6-gatewayd
 SYSTEMDDIR = /etc/systemd/system
 WEBDIR = $(PREFIX)/share/v6-gatewayd/web
+SCRIPTSDIR = $(PREFIX)/share/v6-gatewayd/scripts
 
 # Source files
 SRCDIR = src
@@ -133,6 +134,11 @@ endif
 	install -D -m 644 config/v6-gatewayd.conf.example $(SYSCONFDIR)/v6-gatewayd.conf.example
 	install -D -m 644 systemd/v6-gatewayd.service $(SYSTEMDDIR)/v6-gatewayd.service
 	install -D -m 644 web/index.html $(WEBDIR)/index.html
+	install -D -m 755 scripts/build-and-launch.sh $(SCRIPTSDIR)/build-and-launch.sh
+	install -D -m 755 scripts/v6gw-toggle.sh $(SCRIPTSDIR)/v6gw-toggle.sh
+	install -D -m 755 scripts/he-creds-encrypt.sh $(SCRIPTSDIR)/he-creds-encrypt.sh
+	install -D -m 755 scripts/build-and-launch.sh $(BINDIR)/v6gw-launch
+	ln -sf $(BINDIR)/v6gw-launch $(BINDIR)/hurricane-launch 2>/dev/null || true
 	mkdir -p $(STATEDIR)
 	@echo "Installation complete!"
 	@echo "1. Generate CNSA 2.0 keys:"
@@ -142,21 +148,30 @@ endif
 	@echo "3. Enable cryptography in config:"
 	@echo "     crypto_enabled = true"
 	@echo "     crypto_keyfile = $(STATEDIR)/keys.bin"
-	@echo "4. Start the service:"
+	@echo "4. Quick Launch (Recommended):"
+	@echo "     sudo v6gw-launch"
+	@echo ""
+	@echo "   This will:"
+	@echo "   - Encrypt and install HE credentials (SWORDIntel/940962)"
+	@echo "   - Start the daemon with auto-start enabled"
+	@echo "   - Enable HE auto-update timer (15-minute checks)"
+	@echo "   - Show live status"
+	@echo ""
+	@echo "   OR manual start:"
 	@echo "     sudo systemctl daemon-reload"
 	@echo "     sudo systemctl enable v6-gatewayd"
 	@echo "     sudo systemctl start v6-gatewayd"
 ifeq ($(LIBCURL_AVAILABLE),yes)
 	@echo ""
-	@echo "Optional: Configure Hurricane Electric auto-update (for dynamic IPs):"
-	@echo "5. Setup HE credentials:"
-	@echo "     sudo cp $(SYSCONFDIR)/v6-gatewayd-he.env.example $(SYSCONFDIR)/v6-gatewayd-he.env"
-	@echo "     sudo nano $(SYSCONFDIR)/v6-gatewayd-he.env"
-	@echo "     sudo chmod 600 $(SYSCONFDIR)/v6-gatewayd-he.env"
-	@echo "6. Enable auto-update timer:"
-	@echo "     sudo systemctl enable he-update.timer"
-	@echo "     sudo systemctl start he-update.timer"
+	@echo "Hurricane Electric Auto-Update:"
+	@echo "  Credentials pre-configured for SWORD HQ (Tunnel 940962)"
+	@echo "  Auto-update runs every 15 minutes via systemd timer"
+	@echo "  Credentials are AES-256 encrypted at rest"
 endif
+	@echo ""
+	@echo "Helper Commands:"
+	@echo "  v6gw-launch          - Build, install, and launch (toggle mode)"
+	@echo "  hurricane-launch     - Alias for v6gw-launch"
 
 uninstall:
 	rm -f $(BINDIR)/$(TARGET_DAEMON)

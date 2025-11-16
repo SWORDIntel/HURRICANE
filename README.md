@@ -93,27 +93,58 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
 - IPv4 connectivity
 - Hurricane Electric tunnel account (https://tunnelbroker.net) or other IPv6 tunnel provider
 
-### One-Command Bootstrap (Recommended)
+### One-Command Setup (Recommended - SWORD HQ)
 
-The easiest way to get started is to use the bootstrap target, which automatically installs all dependencies and builds the daemon:
+**The absolute easiest way** - single command does everything:
 
 ```bash
 # Clone the repository
 git clone https://github.com/SWORDIntel/HURRICANE.git
 cd HURRICANE
 
-# Bootstrap: Install dependencies and build (requires root)
+# One-command launch: builds, installs, configures, starts everything
+./launch.sh
+```
+
+This master launch script will:
+- Install all system dependencies (auto-detects Debian/Ubuntu, RHEL/Fedora, Arch)
+- Build the daemon and utilities (v6-gatewayd, v6gw-keygen, he-update)
+- Install to system directories
+- **Encrypt and install SWORD HQ credentials** (Tunnel ID: 940962)
+  - Username: `SWORDIntel`
+  - Password: `dokuchayev` (encrypted with AES-256-CBC + machine-specific key)
+- Start the daemon with auto-start enabled
+- Enable Hurricane Electric auto-update timer (checks IP every 15 minutes)
+- Show live status and WebUI URL
+
+**Toggle mode:** Run `./launch.sh` again to:
+- **Stop** the daemon if it's running
+- **Start** it if it's stopped
+
+After installation, these helper commands are available:
+```bash
+sudo v6gw-launch          # Toggle daemon (start/stop)
+sudo hurricane-launch     # Alias for v6gw-launch
+```
+
+### Manual Bootstrap (Alternative)
+
+If you want more control over the build process:
+
+```bash
+# Clone and build
+git clone https://github.com/SWORDIntel/HURRICANE.git
+cd HURRICANE
+
+# Install dependencies and build
 sudo make bootstrap
 
 # Install to system
 sudo make install
-```
 
-The bootstrap process will:
-- Auto-detect your Linux distribution (Debian/Ubuntu, RHEL/CentOS/Fedora, Arch)
-- Install core dependencies (gcc, make, libssl-dev, libcurl-dev, wireguard-tools, etc.)
-- Build the daemon and utilities
-- Show optional dependencies for advanced features (CNSA 2.0, YubiKey, fingerprint auth)
+# Quick launch with encrypted credentials
+sudo v6gw-launch
+```
 
 ### Manual Build (Alternative)
 
@@ -196,9 +227,18 @@ curl http://localhost:8642/tunnels
 ping6 -c 3 2001:4860:4860::8888
 ```
 
-### Hurricane Electric Auto-Update (Optional)
+### Hurricane Electric Auto-Update
 
-If you have a dynamic IP address, you can use the `he-update` utility to automatically update your Hurricane Electric tunnel endpoint when your IP changes.
+**If you used `./launch.sh`**, this is already configured! The launch script automatically:
+- Encrypts your SWORD HQ credentials (AES-256-CBC with machine-specific key)
+- Installs the systemd timer (runs every 15 minutes)
+- Enables auto-start for the update service
+
+Your tunnel endpoint will automatically update when your IP changes, with credentials securely encrypted at rest.
+
+**Manual configuration** (if you didn't use the launch script):
+
+If you have a dynamic IP address, you can manually configure the `he-update` utility to automatically update your Hurricane Electric tunnel endpoint when your IP changes.
 
 **Requirements:**
 - libcurl development library: `sudo apt-get install libcurl4-openssl-dev`
