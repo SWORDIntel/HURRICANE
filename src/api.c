@@ -10,6 +10,7 @@
 #include "crypto.h"
 #include "hwauth.h"
 #include "proxy.h"
+#include "tunnel.h"
 #include "v6gw.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -435,6 +436,277 @@ static void handle_probe_udp(int client_fd, const char *path) {
     }
 }
 
+/* API endpoint: POST /tunnel/:id/start */
+static void handle_tunnel_start(int client_fd, const char *path) {
+    /* Extract tunnel ID from path */
+    int tunnel_id = -1;
+    if (sscanf(path, "/tunnel/%d/start", &tunnel_id) != 1 || tunnel_id < 0 || tunnel_id >= g_ctx.tunnel_count) {
+        send_json_response(client_fd, 404, "Not Found",
+                          "{\"error\": \"Invalid tunnel ID\"}");
+        return;
+    }
+
+    tunnel_t *tunnel = &g_ctx.tunnels[tunnel_id];
+
+    if (tunnel->state == TUNNEL_STATE_UP) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Tunnel already running\"}");
+        return;
+    }
+
+    if (tunnel_up(tunnel) != 0) {
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Failed to start tunnel\"}");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response),
+             "{\"status\": \"ok\", \"tunnel_id\": %d, \"name\": \"%s\", \"state\": \"up\"}",
+             tunnel_id, tunnel->config.name);
+    send_json_response(client_fd, 200, "OK", response);
+}
+
+/* API endpoint: POST /tunnel/:id/stop */
+static void handle_tunnel_stop(int client_fd, const char *path) {
+    int tunnel_id = -1;
+    if (sscanf(path, "/tunnel/%d/stop", &tunnel_id) != 1 || tunnel_id < 0 || tunnel_id >= g_ctx.tunnel_count) {
+        send_json_response(client_fd, 404, "Not Found",
+                          "{\"error\": \"Invalid tunnel ID\"}");
+        return;
+    }
+
+    tunnel_t *tunnel = &g_ctx.tunnels[tunnel_id];
+
+    if (tunnel->state == TUNNEL_STATE_DOWN) {
+        send_json_response(client_fd, 400, "Bad Request",
+                          "{\"error\": \"Tunnel already stopped\"}");
+        return;
+    }
+
+    if (tunnel_down(tunnel) != 0) {
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Failed to stop tunnel\"}");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response),
+             "{\"status\": \"ok\", \"tunnel_id\": %d, \"name\": \"%s\", \"state\": \"down\"}",
+             tunnel_id, tunnel->config.name);
+    send_json_response(client_fd, 200, "OK", response);
+}
+
+/* API endpoint: POST /tunnel/:id/restart */
+static void handle_tunnel_restart(int client_fd, const char *path) {
+    int tunnel_id = -1;
+    if (sscanf(path, "/tunnel/%d/restart", &tunnel_id) != 1 || tunnel_id < 0 || tunnel_id >= g_ctx.tunnel_count) {
+        send_json_response(client_fd, 404, "Not Found",
+                          "{\"error\": \"Invalid tunnel ID\"}");
+        return;
+    }
+
+    tunnel_t *tunnel = &g_ctx.tunnels[tunnel_id];
+
+    /* Stop if running */
+    if (tunnel->state == TUNNEL_STATE_UP) {
+        if (tunnel_down(tunnel) != 0) {
+            send_json_response(client_fd, 500, "Internal Server Error",
+                              "{\"error\": \"Failed to stop tunnel\"}");
+            return;
+        }
+    }
+
+    /* Start */
+    if (tunnel_up(tunnel) != 0) {
+        send_json_response(client_fd, 500, "Internal Server Error",
+                          "{\"error\": \"Failed to start tunnel\"}");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response),
+             "{\"status\": \"ok\", \"tunnel_id\": %d, \"name\": \"%s\", \"state\": \"restarted\"}",
+             tunnel_id, tunnel->config.name);
+    send_json_response(client_fd, 200, "OK", response);
+}
+
+/* API endpoint: GET /config */
+static void handle_get_config(int client_fd) {
+    char json[4096];
+    int offset = 0;
+
+    offset += snprintf(json + offset, sizeof(json) - offset, "{\n");
+    offset += snprintf(json + offset, sizeof(json) - offset, "  \"daemon\": {\n");
+    offset += snprintf(json + offset, sizeof(json) - offset, "    \"mode\": \"%s\",\n",
+                      (g_ctx.config.mode == MODE_KERNEL) ? "kernel" :
+                      (g_ctx.config.mode == MODE_PROXY) ? "proxy" : "socks5");
+    offset += snprintf(json + offset, sizeof(json) - offset, "    \"log_level\": \"%s\",\n", g_ctx.config.log_level);
+    offset += snprintf(json + offset, sizeof(json) - offset, "    \"crypto_enabled\": %s\n",
+                      g_ctx.config.crypto_enabled ? "true" : "false");
+    offset += snprintf(json + offset, sizeof(json) - offset, "  },\n");
+
+    offset += snprintf(json + offset, sizeof(json) - offset, "  \"api\": {\n");
+    offset += snprintf(json + offset, sizeof(json) - offset, "    \"bind_addr\": \"%s\",\n", g_ctx.config.api_bind);
+    offset += snprintf(json + offset, sizeof(json) - offset, "    \"port\": %d\n", g_ctx.config.api_port);
+    offset += snprintf(json + offset, sizeof(json) - offset, "  },\n");
+
+    offset += snprintf(json + offset, sizeof(json) - offset, "  \"tunnels\": [\n");
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        if (i > 0) offset += snprintf(json + offset, sizeof(json) - offset, ",\n");
+        offset += snprintf(json + offset, sizeof(json) - offset, "    {\n");
+        offset += snprintf(json + offset, sizeof(json) - offset, "      \"name\": \"%s\",\n", t->config.name);
+        offset += snprintf(json + offset, sizeof(json) - offset, "      \"type\": \"%s\",\n",
+                          (t->config.type == TUNNEL_TYPE_HE_6IN4) ? "he_6in4" :
+                          (t->config.type == TUNNEL_TYPE_WIREGUARD) ? "wireguard" : "external");
+        offset += snprintf(json + offset, sizeof(json) - offset, "      \"iface\": \"%s\",\n", t->config.iface);
+        offset += snprintf(json + offset, sizeof(json) - offset, "      \"v6_prefix\": \"%s/%d\",\n",
+                          t->config.v6_prefix, t->config.prefix_len);
+        offset += snprintf(json + offset, sizeof(json) - offset, "      \"priority\": %d\n", t->priority);
+        offset += snprintf(json + offset, sizeof(json) - offset, "    }");
+    }
+    offset += snprintf(json + offset, sizeof(json) - offset, "\n  ]\n");
+    offset += snprintf(json + offset, sizeof(json) - offset, "}");
+
+    send_json_response(client_fd, 200, "OK", json);
+}
+
+/* API endpoint: GET /logs?limit=N */
+static void handle_logs(int client_fd, const char *path) {
+    /* Extract limit from query string */
+    int limit = 100;  /* Default limit */
+    const char *query = strchr(path, '?');
+    if (query) {
+        sscanf(query, "?limit=%d", &limit);
+    }
+    if (limit > 1000) limit = 1000;  /* Cap at 1000 entries */
+
+    /* For now, return recent activity from tunnel state changes */
+    char json[8192];
+    int offset = 0;
+
+    offset += snprintf(json + offset, sizeof(json) - offset, "{\n  \"logs\": [\n");
+
+    int log_count = 0;
+    for (int i = 0; i < g_ctx.tunnel_count && log_count < limit; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+
+        if (log_count > 0) {
+            offset += snprintf(json + offset, sizeof(json) - offset, ",\n");
+        }
+
+        const char *state_str = (t->state == TUNNEL_STATE_UP) ? "UP" :
+                               (t->state == TUNNEL_STATE_DOWN) ? "DOWN" : "ERROR";
+
+        offset += snprintf(json + offset, sizeof(json) - offset,
+            "    {\n"
+            "      \"timestamp\": %ld,\n"
+            "      \"level\": \"INFO\",\n"
+            "      \"message\": \"Tunnel %s (%s) state: %s, health: %d, latency: %dms\"\n"
+            "    }",
+            t->last_check,
+            t->config.name,
+            t->config.iface,
+            state_str,
+            t->health_score,
+            t->latency_ms);
+        log_count++;
+    }
+
+    offset += snprintf(json + offset, sizeof(json) - offset, "\n  ],\n");
+    offset += snprintf(json + offset, sizeof(json) - offset, "  \"total\": %d\n", log_count);
+    offset += snprintf(json + offset, sizeof(json) - offset, "}");
+
+    send_json_response(client_fd, 200, "OK", json);
+}
+
+/* API endpoint: GET /metrics - Prometheus format */
+static void handle_metrics(int client_fd) {
+    char metrics[8192];
+    int offset = 0;
+
+    /* Prometheus text format */
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_state Tunnel state (0=down, 1=up, 2=error)\n"
+        "# TYPE v6gw_tunnel_state gauge\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        int state_val = (t->state == TUNNEL_STATE_UP) ? 1 :
+                       (t->state == TUNNEL_STATE_DOWN) ? 0 : 2;
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_state{name=\"%s\",iface=\"%s\",type=\"%s\"} %d\n",
+            t->config.name,
+            t->config.iface,
+            (t->config.type == TUNNEL_TYPE_HE_6IN4) ? "he_6in4" :
+            (t->config.type == TUNNEL_TYPE_WIREGUARD) ? "wireguard" : "external",
+            state_val);
+    }
+
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset, "\n");
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_health_score Tunnel health score (0-100)\n"
+        "# TYPE v6gw_tunnel_health_score gauge\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_health_score{name=\"%s\",iface=\"%s\"} %d\n",
+            t->config.name, t->config.iface, t->health_score);
+    }
+
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset, "\n");
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_latency_ms Tunnel latency in milliseconds\n"
+        "# TYPE v6gw_tunnel_latency_ms gauge\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_latency_ms{name=\"%s\",iface=\"%s\"} %d\n",
+            t->config.name, t->config.iface, t->latency_ms);
+    }
+
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset, "\n");
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_tx_bytes Bytes transmitted\n"
+        "# TYPE v6gw_tunnel_tx_bytes counter\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_tx_bytes{name=\"%s\",iface=\"%s\"} %u\n",
+            t->config.name, t->config.iface, t->tx_bytes);
+    }
+
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset, "\n");
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_rx_bytes Bytes received\n"
+        "# TYPE v6gw_tunnel_rx_bytes counter\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_rx_bytes{name=\"%s\",iface=\"%s\"} %u\n",
+            t->config.name, t->config.iface, t->rx_bytes);
+    }
+
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset, "\n");
+    offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+        "# HELP v6gw_tunnel_reachable Tunnel reachability (0=no, 1=yes)\n"
+        "# TYPE v6gw_tunnel_reachable gauge\n");
+
+    for (int i = 0; i < g_ctx.tunnel_count; i++) {
+        tunnel_t *t = &g_ctx.tunnels[i];
+        offset += snprintf(metrics + offset, sizeof(metrics) - offset,
+            "v6gw_tunnel_reachable{name=\"%s\",iface=\"%s\"} %d\n",
+            t->config.name, t->config.iface, t->reachable ? 1 : 0);
+    }
+
+    send_http_response(client_fd, 200, "OK", "text/plain; version=0.0.4", metrics);
+}
+
 /* API endpoint: GET /ui - Serve TEMPEST WebUI */
 static void handle_webui(int client_fd) {
     /* Serve the static HTML file */
@@ -497,7 +769,7 @@ static void handle_request(int client_fd, const char *request) {
 
     log_debug("API: %s %s", method, path);
 
-    /* Handle POST requests for auth and proxy endpoints */
+    /* Handle POST requests for auth, proxy, and tunnel control endpoints */
     if (strcmp(method, "POST") == 0) {
         /* Extract request body */
         const char *body_start = strstr(request, "\r\n\r\n");
@@ -515,6 +787,18 @@ static void handle_request(int client_fd, const char *request) {
         } else if (strcmp(path, "/ports/tcp") == 0) {
             handle_add_tcp_port(client_fd, body);
             return;
+        } else if (strstr(path, "/tunnel/") != NULL) {
+            /* Handle tunnel control endpoints */
+            if (strstr(path, "/start") != NULL) {
+                handle_tunnel_start(client_fd, path);
+                return;
+            } else if (strstr(path, "/stop") != NULL) {
+                handle_tunnel_stop(client_fd, path);
+                return;
+            } else if (strstr(path, "/restart") != NULL) {
+                handle_tunnel_restart(client_fd, path);
+                return;
+            }
         }
         send_json_response(client_fd, 404, "Not Found", "{\"error\": \"Endpoint not found\"}");
         return;
@@ -533,7 +817,7 @@ static void handle_request(int client_fd, const char *request) {
             "\"service\": \"v6-gatewayd\","
             "\"version\": \"" VERSION "\","
             "\"crypto_enabled\": " "true" ","
-            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/auth/login\", \"/auth/logout\", \"/auth/status\", \"/ports/udp\", \"/ports/tcp\", \"/probe/udp\", \"/ui\"]"
+            "\"endpoints\": [\"/health\", \"/v6/address\", \"/tunnels\", \"/config\", \"/logs\", \"/metrics\", \"/auth/login\", \"/auth/logout\", \"/auth/status\", \"/ports/udp\", \"/ports/tcp\", \"/probe/udp\", \"/tunnel/:id/start\", \"/tunnel/:id/stop\", \"/tunnel/:id/restart\", \"/ui\"]"
             "}";
         send_json_response(client_fd, 200, "OK", info);
         return;
@@ -542,6 +826,15 @@ static void handle_request(int client_fd, const char *request) {
         return;
     } else if (strcmp(path, "/health") == 0) {
         handle_health(client_fd);
+        return;
+    } else if (strcmp(path, "/metrics") == 0) {
+        handle_metrics(client_fd);
+        return;
+    } else if (strcmp(path, "/config") == 0 || strncmp(path, "/config?", 8) == 0) {
+        handle_get_config(client_fd);
+        return;
+    } else if (strncmp(path, "/logs", 5) == 0) {
+        handle_logs(client_fd, path);
         return;
     } else if (strncmp(path, "/probe/udp", 10) == 0) {
         handle_probe_udp(client_fd, path);

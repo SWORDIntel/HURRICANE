@@ -216,6 +216,74 @@
             color: var(--text-primary);
         }
 
+        .tunnel-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 6px 16px;
+            border: 1px solid;
+            background: transparent;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--text-primary);
+            color: var(--primary-bg);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            border-color: var(--status-up);
+            color: var(--status-up);
+        }
+
+        .btn-start:hover:not(:disabled) {
+            background: var(--status-up);
+        }
+
+        .btn-stop {
+            border-color: var(--status-down);
+            color: var(--status-down);
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: var(--status-down);
+        }
+
+        .btn-restart {
+            border-color: var(--text-warning);
+            color: var(--text-warning);
+        }
+
+        .btn-restart:hover:not(:disabled) {
+            background: var(--text-warning);
+            color: var(--primary-bg);
+        }
+
+        .btn-export {
+            border-color: var(--text-info);
+            color: var(--text-info);
+        }
+
+        .btn-export:hover:not(:disabled) {
+            background: var(--text-info);
+            color: var(--primary-bg);
+        }
+
         .health-bar {
             width: 100%;
             height: 8px;
@@ -327,6 +395,61 @@
             margin-bottom: 20px;
             color: var(--text-error);
         }
+
+        .success-banner {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid var(--status-up);
+            padding: 15px;
+            margin-bottom: 20px;
+            color: var(--status-up);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 10px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .config-section {
+            margin-bottom: 20px;
+        }
+
+        .config-section h3 {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 12px;
+        }
+
+        .config-label {
+            color: var(--text-dim);
+        }
+
+        .config-value {
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+        }
+
+        pre {
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            overflow-x: auto;
+            font-size: 11px;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -393,10 +516,23 @@
             </div>
         </div>
 
-        <!-- Tunnels Panel -->
+        <!-- Bandwidth Graph -->
         <div class="panel">
             <div class="panel-header">
-                <span>⬢ TUNNEL STATUS</span>
+                <span>⬢ BANDWIDTH UTILIZATION</span>
+                <span style="font-size: 10px; color: var(--text-dim);">TX/RX BYTES OVER TIME</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container">
+                    <canvas id="bandwidth-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tunnels Panel with Control Buttons -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>⬢ TUNNEL STATUS & CONTROL</span>
                 <span id="tunnel-count" style="font-size: 10px; color: var(--text-dim);">0 CONFIGURED</span>
             </div>
             <div class="panel-body">
@@ -406,10 +542,47 @@
             </div>
         </div>
 
-        <!-- Activity Log Panel -->
+        <!-- Latency & Health Graphs -->
+        <div class="grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <span>⬢ LATENCY MONITOR</span>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-container">
+                        <canvas id="latency-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>⬢ HEALTH SCORE HISTORY</span>
+                </div>
+                <div class="panel-body">
+                    <div class="chart-container">
+                        <canvas id="health-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Viewer -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>⬢ CONFIGURATION</span>
+                <button class="btn btn-export" onclick="downloadConfig()">EXPORT</button>
+            </div>
+            <div class="panel-body" id="config-container">
+                <div class="empty-state">LOADING CONFIGURATION...</div>
+            </div>
+        </div>
+
+        <!-- Activity Log Panel with Export -->
         <div class="panel">
             <div class="panel-header">
                 <span>⬢ ACTIVITY LOG</span>
+                <button class="btn btn-export" onclick="downloadLogs()">EXPORT LOGS</button>
             </div>
             <div class="panel-body" id="log-container" style="max-height: 300px; overflow-y: auto;">
                 <div class="log-entry">
@@ -417,6 +590,29 @@
                     <span class="log-level INFO">INFO</span>
                     <span>WebUI initialized - monitoring started</span>
                 </div>
+            </div>
+        </div>
+
+        <!-- Prometheus Metrics Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>⬢ PROMETHEUS METRICS</span>
+                <button class="btn btn-export" onclick="window.open('http://127.0.0.1:8642/metrics', '_blank')">VIEW RAW</button>
+            </div>
+            <div class="panel-body">
+                <div class="metric">
+                    <span class="metric-label">METRICS ENDPOINT</span>
+                    <span class="metric-value" style="font-size: 11px;">http://127.0.0.1:8642/metrics</span>
+                </div>
+                <div style="margin-top: 15px; font-size: 11px; color: var(--text-dim);">
+                    Prometheus scrape configuration:
+                </div>
+                <pre>scrape_configs:
+  - job_name: 'v6-gatewayd'
+    static_configs:
+      - targets: ['127.0.0.1:8642']
+    metrics_path: '/metrics'
+    scrape_interval: 15s</pre>
             </div>
         </div>
     </div>
@@ -430,6 +626,13 @@
         const API_BASE = 'http://127.0.0.1:8642';
         let logBuffer = [];
         const MAX_LOG_ENTRIES = 50;
+        let tunnelData = [];
+        let historyData = {
+            bandwidth: { labels: [], tx: [], rx: [] },
+            latency: { labels: [], values: [] },
+            health: { labels: [], values: [] }
+        };
+        const MAX_HISTORY = 20;
 
         function addLog(level, message) {
             const now = new Date();
@@ -459,6 +662,21 @@
                     ⚠ ERROR: ${message}
                 </div>
             `;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 10000);
+        }
+
+        function showSuccess(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `
+                <div class="success-banner">
+                    ✓ ${message}
+                </div>
+            `;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
         }
 
         function clearError() {
@@ -488,6 +706,15 @@
                 } else {
                     statusIndicator.className = 'status-indicator';
                     statusText.textContent = 'OFFLINE';
+                }
+
+                // Update latency history
+                const now = new Date().toLocaleTimeString();
+                historyData.latency.labels.push(now);
+                historyData.latency.values.push(data.v6_latency_ms || 0);
+                if (historyData.latency.labels.length > MAX_HISTORY) {
+                    historyData.latency.labels.shift();
+                    historyData.latency.values.shift();
                 }
 
                 clearError();
@@ -529,12 +756,14 @@
                 const count = document.getElementById('tunnel-count');
 
                 if (data.tunnels && data.tunnels.length > 0) {
+                    tunnelData = data.tunnels;
                     count.textContent = `${data.tunnels.length} CONFIGURED`;
 
-                    container.innerHTML = data.tunnels.map(tunnel => {
+                    container.innerHTML = data.tunnels.map((tunnel, index) => {
                         const health = tunnel.health_score || 0;
                         const healthClass = health >= 70 ? '' : health >= 30 ? 'degraded' : 'critical';
                         const isPrimary = tunnel.is_primary || false;
+                        const isUp = tunnel.state === 'up';
 
                         return `
                             <li class="tunnel-item">
@@ -554,9 +783,36 @@
                                 <div class="health-bar">
                                     <div class="health-fill ${healthClass}" style="width: ${health}%"></div>
                                 </div>
+                                <div class="tunnel-controls">
+                                    <button class="btn btn-start" onclick="controlTunnel(${index}, 'start')" ${isUp ? 'disabled' : ''}>START</button>
+                                    <button class="btn btn-stop" onclick="controlTunnel(${index}, 'stop')" ${!isUp ? 'disabled' : ''}>STOP</button>
+                                    <button class="btn btn-restart" onclick="controlTunnel(${index}, 'restart')">RESTART</button>
+                                </div>
                             </li>
                         `;
                     }).join('');
+
+                    // Update bandwidth history
+                    const now = new Date().toLocaleTimeString();
+                    historyData.bandwidth.labels.push(now);
+                    const totalTx = data.tunnels.reduce((sum, t) => sum + (t.tx_bytes || 0), 0);
+                    const totalRx = data.tunnels.reduce((sum, t) => sum + (t.rx_bytes || 0), 0);
+                    historyData.bandwidth.tx.push(totalTx);
+                    historyData.bandwidth.rx.push(totalRx);
+                    if (historyData.bandwidth.labels.length > MAX_HISTORY) {
+                        historyData.bandwidth.labels.shift();
+                        historyData.bandwidth.tx.shift();
+                        historyData.bandwidth.rx.shift();
+                    }
+
+                    // Update health history (average of all tunnels)
+                    const avgHealth = data.tunnels.reduce((sum, t) => sum + (t.health_score || 0), 0) / data.tunnels.length;
+                    historyData.health.labels.push(now);
+                    historyData.health.values.push(avgHealth);
+                    if (historyData.health.labels.length > MAX_HISTORY) {
+                        historyData.health.labels.shift();
+                        historyData.health.values.shift();
+                    }
                 } else {
                     container.innerHTML = '<div class="empty-state">NO TUNNELS CONFIGURED</div>';
                     count.textContent = '0 CONFIGURED';
@@ -564,6 +820,133 @@
             } catch (error) {
                 addLog('ERROR', `Tunnel fetch failed: ${error.message}`);
             }
+        }
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const data = await response.json();
+
+                const container = document.getElementById('config-container');
+                let html = '';
+
+                if (data.daemon) {
+                    html += '<div class="config-section">';
+                    html += '<h3>⬢ DAEMON CONFIGURATION</h3>';
+                    html += `<div class="config-item"><span class="config-label">Mode:</span><span class="config-value">${data.daemon.mode}</span></div>`;
+                    html += `<div class="config-item"><span class="config-label">Log Level:</span><span class="config-value">${data.daemon.log_level}</span></div>`;
+                    html += `<div class="config-item"><span class="config-label">Crypto Enabled:</span><span class="config-value">${data.daemon.crypto_enabled}</span></div>`;
+                    html += '</div>';
+                }
+
+                if (data.api) {
+                    html += '<div class="config-section">';
+                    html += '<h3>⬢ API CONFIGURATION</h3>';
+                    html += `<div class="config-item"><span class="config-label">Bind Address:</span><span class="config-value">${data.api.bind_addr}</span></div>`;
+                    html += `<div class="config-item"><span class="config-label">Port:</span><span class="config-value">${data.api.port}</span></div>`;
+                    html += '</div>';
+                }
+
+                if (data.tunnels && data.tunnels.length > 0) {
+                    html += '<div class="config-section">';
+                    html += '<h3>⬢ TUNNEL CONFIGURATION</h3>';
+                    data.tunnels.forEach((t, i) => {
+                        html += `<div style="margin-bottom: 15px; padding: 10px; background: var(--secondary-bg); border: 1px solid var(--border-color);">`;
+                        html += `<div style="font-weight: bold; color: var(--text-primary); margin-bottom: 5px;">${t.name}</div>`;
+                        html += `<div class="config-item"><span class="config-label">Type:</span><span class="config-value">${t.type}</span></div>`;
+                        html += `<div class="config-item"><span class="config-label">Interface:</span><span class="config-value">${t.iface}</span></div>`;
+                        html += `<div class="config-item"><span class="config-label">IPv6 Prefix:</span><span class="config-value">${t.v6_prefix}</span></div>`;
+                        html += `<div class="config-item"><span class="config-label">Priority:</span><span class="config-value">${t.priority}</span></div>`;
+                        html += `</div>`;
+                    });
+                    html += '</div>';
+                }
+
+                container.innerHTML = html || '<div class="empty-state">NO CONFIGURATION AVAILABLE</div>';
+            } catch (error) {
+                addLog('ERROR', `Config fetch failed: ${error.message}`);
+            }
+        }
+
+        async function fetchServerLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/logs?limit=50`);
+                const data = await response.json();
+
+                if (data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        const date = new Date(log.timestamp * 1000);
+                        const time = date.toTimeString().split(' ')[0];
+                        logBuffer.push({
+                            time: time,
+                            level: log.level,
+                            message: log.message
+                        });
+                    });
+                    if (logBuffer.length > MAX_LOG_ENTRIES) {
+                        logBuffer = logBuffer.slice(0, MAX_LOG_ENTRIES);
+                    }
+                    renderLogs();
+                }
+            } catch (error) {
+                // Silently fail for logs
+            }
+        }
+
+        async function controlTunnel(index, action) {
+            try {
+                const response = await fetch(`${API_BASE}/tunnel/${index}/${action}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(`Tunnel ${action} successful: ${data.name}`);
+                    addLog('INFO', `Tunnel ${data.name} ${action} successful`);
+                    setTimeout(updateDashboard, 1000);
+                } else {
+                    showError(`Tunnel ${action} failed: ${data.error}`);
+                    addLog('ERROR', `Tunnel ${action} failed: ${data.error}`);
+                }
+            } catch (error) {
+                showError(`Tunnel control failed: ${error.message}`);
+                addLog('ERROR', `Tunnel control failed: ${error.message}`);
+            }
+        }
+
+        function downloadLogs() {
+            const content = logBuffer.map(entry =>
+                `${entry.time} [${entry.level}] ${entry.message}`
+            ).join('\n');
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `v6-gatewayd-logs-${new Date().toISOString()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            addLog('INFO', 'Logs exported successfully');
+        }
+
+        function downloadConfig() {
+            fetch(`${API_BASE}/config`)
+                .then(res => res.json())
+                .then(data => {
+                    const content = JSON.stringify(data, null, 2);
+                    const blob = new Blob([content], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `v6-gatewayd-config-${new Date().toISOString()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    addLog('INFO', 'Configuration exported successfully');
+                })
+                .catch(error => {
+                    showError(`Config export failed: ${error.message}`);
+                });
         }
 
         async function fetchVersion() {
@@ -576,6 +959,114 @@
             }
         }
 
+        // Simple line chart renderer using Canvas
+        function drawLineChart(canvasId, labels, datasets) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = canvas.offsetHeight;
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (labels.length === 0) {
+                ctx.fillStyle = '#008800';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('NO DATA AVAILABLE', width / 2, height / 2);
+                return;
+            }
+
+            const padding = 40;
+            const chartWidth = width - 2 * padding;
+            const chartHeight = height - 2 * padding;
+
+            // Find max value across all datasets
+            let maxValue = 0;
+            datasets.forEach(ds => {
+                const max = Math.max(...ds.data);
+                if (max > maxValue) maxValue = max;
+            });
+            if (maxValue === 0) maxValue = 100;
+
+            // Draw grid
+            ctx.strokeStyle = '#2a4a2a';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (chartHeight / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(width - padding, y);
+                ctx.stroke();
+
+                // Y-axis labels
+                const value = Math.round(maxValue * (1 - i / 4));
+                ctx.fillStyle = '#008800';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(value.toString(), padding - 10, y + 4);
+            }
+
+            // Draw datasets
+            datasets.forEach((dataset, dsIndex) => {
+                ctx.strokeStyle = dataset.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                dataset.data.forEach((value, i) => {
+                    const x = padding + (chartWidth / (labels.length - 1 || 1)) * i;
+                    const y = padding + chartHeight - (value / maxValue) * chartHeight;
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+
+                // Draw legend
+                const legendY = 20 + dsIndex * 15;
+                ctx.fillStyle = dataset.color;
+                ctx.fillRect(width - 150, legendY - 8, 10, 10);
+                ctx.fillStyle = '#00ff00';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(dataset.label, width - 135, legendY);
+            });
+
+            // X-axis labels (show every 5th)
+            ctx.fillStyle = '#008800';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            labels.forEach((label, i) => {
+                if (i % 5 === 0 || i === labels.length - 1) {
+                    const x = padding + (chartWidth / (labels.length - 1 || 1)) * i;
+                    ctx.fillText(label.split(':').slice(0, 2).join(':'), x, height - padding + 20);
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Bandwidth chart
+            drawLineChart('bandwidth-chart', historyData.bandwidth.labels, [
+                { label: 'TX BYTES', data: historyData.bandwidth.tx, color: '#00aaff' },
+                { label: 'RX BYTES', data: historyData.bandwidth.rx, color: '#ffaa00' }
+            ]);
+
+            // Latency chart
+            drawLineChart('latency-chart', historyData.latency.labels, [
+                { label: 'LATENCY (ms)', data: historyData.latency.values, color: '#00ff00' }
+            ]);
+
+            // Health chart
+            drawLineChart('health-chart', historyData.health.labels, [
+                { label: 'HEALTH SCORE', data: historyData.health.values, color: '#00ff00' }
+            ]);
+        }
+
         async function updateDashboard() {
             const now = new Date();
             document.getElementById('last-update').textContent = now.toTimeString().split(' ')[0];
@@ -584,8 +1075,10 @@
                 await Promise.all([
                     fetchHealth(),
                     fetchAddresses(),
-                    fetchTunnels()
+                    fetchTunnels(),
+                    fetchConfig()
                 ]);
+                updateCharts();
             } catch (error) {
                 // Errors are logged by individual functions
             }
@@ -596,6 +1089,7 @@
         addLog('INFO', 'Connecting to v6-gatewayd daemon...');
 
         fetchVersion();
+        fetchServerLogs();
         updateDashboard();
 
         // Update every 5 seconds

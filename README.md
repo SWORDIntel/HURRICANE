@@ -27,16 +27,23 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
   - `/health` - System health and IPv6 connectivity status
   - `/v6/address` - Get available IPv6 addresses and reachability
   - `/tunnels` - List all tunnels and their states
+  - `/tunnel/:id/start|stop|restart` - Control individual tunnels
+  - `/config` - View current daemon configuration
+  - `/logs` - Export activity logs
+  - `/metrics` - Prometheus-compatible metrics
   - `/ports/udp`, `/ports/tcp` - Dynamic proxy port management
   - `/ui` - TEMPEST-themed web interface
 
 - **TEMPEST WebUI** (Class C Compliant)
   - Dark military-themed web dashboard ([docs/WEBUI.md](docs/WEBUI.md))
-  - Real-time tunnel monitoring with auto-refresh
-  - Health score visualization
-  - Activity log viewer
+  - **Tunnel Control**: Start/stop/restart tunnels with one click
+  - **Real-time Graphs**: Bandwidth, latency, and health score charts
+  - **Configuration Viewer**: Live config display with JSON export
+  - **Activity Log Export**: Download logs for analysis
+  - **Prometheus Integration**: Direct metrics access
+  - Health score visualization with auto-refresh (5s)
   - Security-hardened (CSP, local-only, no external resources)
-  - Zero external dependencies
+  - Zero external dependencies (pure Canvas charts, no Chart.js)
 
 - **MCP Server** (Model Context Protocol)
   - Local-only Unix socket interface for AI/automation access
@@ -367,6 +374,157 @@ Initiate UDP reachability probe for a port.
 ```bash
 curl "http://localhost:8642/probe/udp?port=7654"
 ```
+
+#### POST /tunnel/:id/start
+
+Start a stopped tunnel.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "tunnel_id": 0,
+  "name": "he",
+  "state": "up"
+}
+```
+
+**Usage:**
+```bash
+curl -X POST http://localhost:8642/tunnel/0/start
+```
+
+#### POST /tunnel/:id/stop
+
+Stop a running tunnel.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "tunnel_id": 0,
+  "name": "he",
+  "state": "down"
+}
+```
+
+#### POST /tunnel/:id/restart
+
+Restart a tunnel (stop then start).
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "tunnel_id": 0,
+  "name": "he",
+  "state": "restarted"
+}
+```
+
+#### GET /config
+
+Get current daemon configuration.
+
+**Response:**
+```json
+{
+  "daemon": {
+    "mode": "kernel",
+    "log_level": "info",
+    "crypto_enabled": true
+  },
+  "api": {
+    "bind_addr": "127.0.0.1",
+    "port": 8642
+  },
+  "tunnels": [
+    {
+      "name": "he",
+      "type": "he_6in4",
+      "iface": "he0",
+      "v6_prefix": "2001:470::/64",
+      "priority": 0
+    }
+  ]
+}
+```
+
+#### GET /logs?limit=N
+
+Get recent activity logs (default limit: 100, max: 1000).
+
+**Response:**
+```json
+{
+  "logs": [
+    {
+      "timestamp": 1699564234,
+      "level": "INFO",
+      "message": "Tunnel he (he0) state: UP, health: 95, latency: 35ms"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Usage:**
+```bash
+curl "http://localhost:8642/logs?limit=50"
+```
+
+#### GET /metrics
+
+Get Prometheus-compatible metrics in text format.
+
+**Response (text/plain):**
+```
+# HELP v6gw_tunnel_state Tunnel state (0=down, 1=up, 2=error)
+# TYPE v6gw_tunnel_state gauge
+v6gw_tunnel_state{name="he",iface="he0",type="he_6in4"} 1
+
+# HELP v6gw_tunnel_health_score Tunnel health score (0-100)
+# TYPE v6gw_tunnel_health_score gauge
+v6gw_tunnel_health_score{name="he",iface="he0"} 95
+
+# HELP v6gw_tunnel_latency_ms Tunnel latency in milliseconds
+# TYPE v6gw_tunnel_latency_ms gauge
+v6gw_tunnel_latency_ms{name="he",iface="he0"} 35
+
+# HELP v6gw_tunnel_tx_bytes Bytes transmitted
+# TYPE v6gw_tunnel_tx_bytes counter
+v6gw_tunnel_tx_bytes{name="he",iface="he0"} 1234567
+
+# HELP v6gw_tunnel_rx_bytes Bytes received
+# TYPE v6gw_tunnel_rx_bytes counter
+v6gw_tunnel_rx_bytes{name="he",iface="he0"} 987654
+
+# HELP v6gw_tunnel_reachable Tunnel reachability (0=no, 1=yes)
+# TYPE v6gw_tunnel_reachable gauge
+v6gw_tunnel_reachable{name="he",iface="he0"} 1
+```
+
+**Prometheus Configuration:**
+```yaml
+scrape_configs:
+  - job_name: 'v6-gatewayd'
+    static_configs:
+      - targets: ['127.0.0.1:8642']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+#### GET /ui
+
+Access the TEMPEST Class C web interface at http://127.0.0.1:8642/ui
+
+**Features:**
+- Real-time tunnel monitoring with 5-second auto-refresh
+- Start/stop/restart tunnel controls
+- Bandwidth, latency, and health score graphs (Canvas-based)
+- Configuration viewer with JSON export
+- Activity log viewer with text export
+- Prometheus metrics integration
 
 ## MCP Server Interface
 
