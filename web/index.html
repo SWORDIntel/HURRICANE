@@ -478,6 +478,115 @@
     <div class="container">
         <div id="error-container"></div>
 
+        <!-- Routing Mode Control Panel -->
+        <div class="panel" style="margin-bottom: 20px;">
+            <div class="panel-header">
+                <span>⬢ ROUTING MODE CONTROL</span>
+                <span id="routing-mode-badge" class="badge primary">IPv6</span>
+            </div>
+            <div class="panel-body">
+                <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 15px;">
+                    <div style="flex: 1;">
+                        <div style="color: var(--text-secondary); font-size: 11px; margin-bottom: 8px;">SELECT ROUTING MODE:</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" id="btn-mode-ipv6" onclick="setRoutingMode('ipv6')" style="flex: 1;">IPv6 ONLY</button>
+                            <button class="btn" id="btn-mode-ipv9" onclick="setRoutingMode('ipv9')" style="flex: 1;">IPv9 ONLY</button>
+                            <button class="btn" id="btn-mode-dual" onclick="setRoutingMode('dual')" style="flex: 1;">DUAL MODE</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <div class="metric">
+                            <span class="metric-label">IPv6 ENABLED</span>
+                            <span class="metric-value" id="routing-ipv6-status">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">IPv9 ENABLED</span>
+                            <span class="metric-value" id="routing-ipv9-status">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FASTPORT Scanner Panel -->
+        <div class="panel" style="margin-bottom: 20px;">
+            <div class="panel-header">
+                <span>⬢ FASTPORT UNIFIED SCANNER</span>
+                <span id="scanner-status" style="font-size: 10px; color: var(--text-dim);">READY</span>
+            </div>
+            <div class="panel-body">
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">TARGET (IPv6, IPv4, or .chn domain):</label>
+                        <input type="text" id="scan-target" placeholder="2001:470:1f1c:258::1 or www.v9.chn"
+                               style="width: 100%; padding: 8px; background: var(--secondary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 12px;">
+                    </div>
+                    <div>
+                        <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">PORTS:</label>
+                        <input type="text" id="scan-ports" placeholder="22,80,443" value="22,80,443,8080,8443"
+                               style="width: 100%; padding: 8px; background: var(--secondary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 12px;">
+                    </div>
+                    <div>
+                        <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">TIMEOUT (s):</label>
+                        <input type="number" id="scan-timeout" value="1.0" step="0.1" min="0.1" max="10"
+                               style="width: 100%; padding: 8px; background: var(--secondary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 12px;">
+                    </div>
+                    <div style="align-self: flex-end;">
+                        <button class="btn btn-start" id="btn-scan-start" onclick="startScan()">START SCAN</button>
+                    </div>
+                </div>
+                <div id="scan-progress" style="display: none; margin-bottom: 15px;">
+                    <div style="color: var(--text-info); font-size: 11px; margin-bottom: 5px;" id="scan-progress-text">Scanning...</div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="scan-progress-bar" style="width: 0%; background: var(--text-info);"></div>
+                    </div>
+                </div>
+                <div id="scan-results" style="max-height: 300px; overflow-y: auto; background: var(--secondary-bg); border: 1px solid var(--border-color); padding: 10px; font-size: 11px; font-family: 'Courier New', monospace;">
+                    <div style="color: var(--text-dim);">No scan results yet. Enter a target and click START SCAN.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Split Tunneling Rules Panel -->
+        <div class="panel" style="margin-bottom: 20px;">
+            <div class="panel-header">
+                <span>⬢ SPLIT TUNNELING RULES</span>
+                <button class="btn btn-export" onclick="showAddRuleForm()">ADD RULE</button>
+            </div>
+            <div class="panel-body">
+                <div id="add-rule-form" style="display: none; background: var(--secondary-bg); border: 1px solid var(--border-color); padding: 15px; margin-bottom: 15px;">
+                    <div style="color: var(--text-primary); font-weight: bold; margin-bottom: 10px;">ADD NEW ROUTING RULE</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px;">
+                        <div>
+                            <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">RULE NAME:</label>
+                            <input type="text" id="rule-name" placeholder="China Sites"
+                                   style="width: 100%; padding: 6px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 11px;">
+                        </div>
+                        <div>
+                            <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">PATTERN:</label>
+                            <input type="text" id="rule-pattern" placeholder="*.chn,*.cn"
+                                   style="width: 100%; padding: 6px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 11px;">
+                        </div>
+                        <div>
+                            <label style="color: var(--text-secondary); font-size: 11px; display: block; margin-bottom: 5px;">ROUTE:</label>
+                            <select id="rule-route" style="width: 100%; padding: 6px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-family: inherit; font-size: 11px;">
+                                <option value="ipv6">IPv6</option>
+                                <option value="ipv9">IPv9</option>
+                                <option value="auto">Auto</option>
+                            </select>
+                        </div>
+                        <div style="align-self: flex-end; display: flex; gap: 5px;">
+                            <button class="btn btn-start" onclick="addSplitTunnelRule()" style="padding: 6px 12px;">ADD</button>
+                            <button class="btn btn-stop" onclick="hideAddRuleForm()" style="padding: 6px 12px;">CANCEL</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="split-tunnel-rules" style="min-height: 100px;">
+                    <div style="color: var(--text-dim); text-align: center; padding: 20px;">Loading rules...</div>
+                </div>
+            </div>
+        </div>
+
         <div class="grid">
             <!-- System Health Panel -->
             <div class="panel">
@@ -623,7 +732,7 @@
 
     <script>
         // TEMPEST Console Controller
-        const API_BASE = 'http://127.0.0.1:8642';
+        const API_BASE = 'http://127.0.0.1:8643';  // Comprehensive API with routing + split tunnel + scanner
         let logBuffer = [];
         const MAX_LOG_ENTRIES = 50;
         let tunnelData = [];
@@ -1084,16 +1193,318 @@
             }
         }
 
+        // ==================== ROUTING MODE FUNCTIONS ====================
+
+        async function fetchRoutingStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/routing/status`);
+                const data = await response.json();
+
+                document.getElementById('routing-mode-badge').textContent = data.routing_mode.toUpperCase();
+                document.getElementById('routing-ipv6-status').textContent = data.ipv6_enabled ? 'YES' : 'NO';
+                document.getElementById('routing-ipv9-status').textContent = data.ipv9_enabled ? 'YES' : 'NO';
+
+                // Update button states
+                ['ipv6', 'ipv9', 'dual'].forEach(mode => {
+                    const btn = document.getElementById(`btn-mode-${mode}`);
+                    if (data.routing_mode === mode) {
+                        btn.style.background = 'var(--status-up)';
+                        btn.style.color = 'var(--primary-bg)';
+                    } else {
+                        btn.style.background = 'transparent';
+                        btn.style.color = 'var(--text-primary)';
+                    }
+                });
+            } catch (error) {
+                addLog('ERROR', `Routing status fetch failed: ${error.message}`);
+            }
+        }
+
+        async function setRoutingMode(mode) {
+            try {
+                const response = await fetch(`${API_BASE}/routing/mode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(`Routing mode set to ${mode.toUpperCase()}`);
+                    addLog('INFO', `Routing mode changed to ${mode.toUpperCase()}`);
+                    fetchRoutingStatus();
+                } else {
+                    showError(`Failed to set routing mode: ${data.error}`);
+                }
+            } catch (error) {
+                showError(`Routing mode change failed: ${error.message}`);
+                addLog('ERROR', `Routing mode change failed: ${error.message}`);
+            }
+        }
+
+        // ==================== SPLIT TUNNEL FUNCTIONS ====================
+
+        async function fetchSplitTunnelRules() {
+            try {
+                const response = await fetch(`${API_BASE}/split-tunnel/rules`);
+                const data = await response.json();
+
+                const container = document.getElementById('split-tunnel-rules');
+
+                if (data.rules && data.rules.length > 0) {
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 40px 1fr 1fr auto auto; gap: 10px; padding: 10px; background: var(--secondary-bg); border-bottom: 1px solid var(--border-color); font-size: 11px; font-weight: bold;">
+                            <div>PRI</div>
+                            <div>NAME</div>
+                            <div>PATTERN</div>
+                            <div>ROUTE</div>
+                            <div></div>
+                        </div>
+                    ` + data.rules.map(rule => `
+                        <div style="display: grid; grid-template-columns: 40px 1fr 1fr auto auto; gap: 10px; padding: 10px; border-bottom: 1px solid #1a1a1a; align-items: center; font-size: 11px;">
+                            <div style="color: var(--text-dim);">${rule.priority}</div>
+                            <div style="color: var(--text-primary);">${rule.name}</div>
+                            <div style="color: var(--text-secondary); font-family: monospace;">${rule.pattern}</div>
+                            <div>
+                                <span class="badge ${rule.route === 'ipv6' ? 'primary' : 'backup'}" style="margin: 0;">
+                                    ${rule.route.toUpperCase()}
+                                </span>
+                            </div>
+                            <div>
+                                <button class="btn btn-stop" onclick="deleteSplitTunnelRule('${rule.name}')" style="padding: 4px 10px; font-size: 10px;">DELETE</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 20px;">No rules configured</div>';
+                }
+            } catch (error) {
+                addLog('ERROR', `Split tunnel rules fetch failed: ${error.message}`);
+            }
+        }
+
+        function showAddRuleForm() {
+            document.getElementById('add-rule-form').style.display = 'block';
+        }
+
+        function hideAddRuleForm() {
+            document.getElementById('add-rule-form').style.display = 'none';
+            document.getElementById('rule-name').value = '';
+            document.getElementById('rule-pattern').value = '';
+            document.getElementById('rule-route').value = 'ipv6';
+        }
+
+        async function addSplitTunnelRule() {
+            const name = document.getElementById('rule-name').value.trim();
+            const pattern = document.getElementById('rule-pattern').value.trim();
+            const route = document.getElementById('rule-route').value;
+
+            if (!name || !pattern) {
+                showError('Rule name and pattern are required');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/split-tunnel/rules`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        pattern: pattern,
+                        route: route,
+                        enabled: true,
+                        priority: 100
+                    })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(`Rule "${name}" added successfully`);
+                    addLog('INFO', `Split tunnel rule added: ${name} → ${route}`);
+                    hideAddRuleForm();
+                    fetchSplitTunnelRules();
+                } else {
+                    showError(`Failed to add rule: ${data.error}`);
+                }
+            } catch (error) {
+                showError(`Add rule failed: ${error.message}`);
+                addLog('ERROR', `Add rule failed: ${error.message}`);
+            }
+        }
+
+        async function deleteSplitTunnelRule(ruleName) {
+            if (!confirm(`Delete rule "${ruleName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/split-tunnel/rules/${encodeURIComponent(ruleName)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess(`Rule "${ruleName}" deleted`);
+                    addLog('INFO', `Split tunnel rule deleted: ${ruleName}`);
+                    fetchSplitTunnelRules();
+                } else {
+                    showError(`Failed to delete rule: ${data.error}`);
+                }
+            } catch (error) {
+                showError(`Delete rule failed: ${error.message}`);
+                addLog('ERROR', `Delete rule failed: ${error.message}`);
+            }
+        }
+
+        // ==================== FASTPORT SCANNER FUNCTIONS ====================
+
+        let activeScanEventSource = null;
+
+        async function startScan() {
+            const target = document.getElementById('scan-target').value.trim();
+            const portsInput = document.getElementById('scan-ports').value.trim();
+            const timeout = parseFloat(document.getElementById('scan-timeout').value);
+
+            if (!target) {
+                showError('Target is required');
+                return;
+            }
+
+            // Clear previous results
+            document.getElementById('scan-results').innerHTML = '<div style="color: var(--text-info);">Starting scan...</div>';
+            document.getElementById('scan-progress').style.display = 'block';
+            document.getElementById('scan-progress-bar').style.width = '0%';
+            document.getElementById('btn-scan-start').disabled = true;
+            document.getElementById('scanner-status').textContent = 'SCANNING';
+            document.getElementById('scanner-status').style.color = 'var(--text-info)';
+
+            addLog('INFO', `Starting scan of ${target}`);
+
+            try {
+                // Start scan
+                const response = await fetch(`${API_BASE}/scanner/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target: target,
+                        ports: portsInput,
+                        timeout: timeout,
+                        workers: 100
+                    })
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(`Scan start failed: ${data.error}`);
+                    resetScanUI();
+                    return;
+                }
+
+                const scanId = data.scan_id;
+                addLog('INFO', `Scan started: ${scanId}`);
+
+                // Connect to SSE stream for real-time updates
+                if (activeScanEventSource) {
+                    activeScanEventSource.close();
+                }
+
+                activeScanEventSource = new EventSource(`${API_BASE}/scanner/stream/${scanId}`);
+
+                activeScanEventSource.onmessage = function(event) {
+                    const msg = JSON.parse(event.data);
+
+                    if (msg.type === 'connected') {
+                        addLog('INFO', 'Connected to scan stream');
+                    } else if (msg.type === 'progress') {
+                        // Update progress bar
+                        const progress = msg.data;
+                        document.getElementById('scan-progress-bar').style.width = `${progress.percent}%`;
+                        document.getElementById('scan-progress-text').textContent =
+                            `Scanning port ${progress.current_port}... (${progress.scanned}/${progress.total}) - ${progress.open_ports} open`;
+                    } else if (msg.type === 'complete') {
+                        // Display results
+                        displayScanResults(msg.data);
+                        resetScanUI();
+                        activeScanEventSource.close();
+                        addLog('INFO', `Scan complete: ${msg.data.open_ports} open ports found`);
+                    } else if (msg.type === 'error') {
+                        showError(`Scan error: ${msg.error}`);
+                        resetScanUI();
+                        activeScanEventSource.close();
+                    }
+                };
+
+                activeScanEventSource.onerror = function(error) {
+                    addLog('WARN', 'Scan stream connection lost');
+                    resetScanUI();
+                    activeScanEventSource.close();
+                };
+
+            } catch (error) {
+                showError(`Scan failed: ${error.message}`);
+                addLog('ERROR', `Scan failed: ${error.message}`);
+                resetScanUI();
+            }
+        }
+
+        function resetScanUI() {
+            document.getElementById('btn-scan-start').disabled = false;
+            document.getElementById('scanner-status').textContent = 'READY';
+            document.getElementById('scanner-status').style.color = 'var(--text-dim)';
+            document.getElementById('scan-progress').style.display = 'none';
+        }
+
+        function displayScanResults(results) {
+            const container = document.getElementById('scan-results');
+
+            if (results.error) {
+                container.innerHTML = `<div style="color: var(--text-error);">ERROR: ${results.error}</div>`;
+                return;
+            }
+
+            let html = '';
+            html += `<div style="color: var(--text-info); margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">`;
+            html += `<div>TARGET: <span style="color: var(--text-primary);">${results.target}</span> (${results.target_type.toUpperCase()})</div>`;
+            html += `<div>SCANNED: <span style="color: var(--text-primary);">${results.total_ports}</span> ports | `;
+            html += `OPEN: <span style="color: var(--status-up);">${results.open_ports}</span> ports</div>`;
+            html += `<div>TIME: <span style="color: var(--text-primary);">${new Date(results.scan_time).toLocaleString()}</span></div>`;
+            html += `</div>`;
+
+            if (results.results && results.results.length > 0) {
+                html += `<div style="display: grid; grid-template-columns: 80px 100px 150px 100px 1fr; gap: 10px; padding: 8px; background: var(--secondary-bg); border-bottom: 1px solid var(--border-color); font-weight: bold;">`;
+                html += `<div>PORT</div><div>STATE</div><div>SERVICE</div><div>ROUTE</div><div>BANNER</div>`;
+                html += `</div>`;
+
+                results.results.forEach(port => {
+                    html += `<div style="display: grid; grid-template-columns: 80px 100px 150px 100px 1fr; gap: 10px; padding: 8px; border-bottom: 1px solid #1a1a1a; align-items: center;">`;
+                    html += `<div style="color: var(--status-up);">${port.port}</div>`;
+                    html += `<div style="color: var(--status-up);">${port.state.toUpperCase()}</div>`;
+                    html += `<div style="color: var(--text-primary);">${port.service}</div>`;
+                    html += `<div><span class="badge primary" style="margin: 0; font-size: 9px;">${port.route ? port.route.toUpperCase() : 'AUTO'}</span></div>`;
+                    html += `<div style="color: var(--text-dim); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${port.banner || '-'}</div>`;
+                    html += `</div>`;
+                });
+            } else {
+                html += `<div style="color: var(--text-dim); text-align: center; padding: 20px;">No open ports found</div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
         // Initialize
         addLog('INFO', 'TEMPEST Console initialized');
         addLog('INFO', 'Connecting to v6-gatewayd daemon...');
 
         fetchVersion();
         fetchServerLogs();
+        fetchRoutingStatus();
+        fetchSplitTunnelRules();
         updateDashboard();
 
         // Update every 5 seconds
         setInterval(updateDashboard, 5000);
+        setInterval(fetchRoutingStatus, 5000);
+        setInterval(fetchSplitTunnelRules, 10000);
         addLog('INFO', 'Auto-refresh enabled (5s interval)');
     </script>
 </body>
