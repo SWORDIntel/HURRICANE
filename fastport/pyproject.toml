@@ -1,0 +1,109 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0", "setuptools>=45", "wheel"]
+build-backend = "maturin"
+
+[project]
+name = "fastport"
+version = "1.0.0"
+description = "High-performance async port scanner with AVX-512 acceleration and CVE integration"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "HDAIS Project" }
+]
+keywords = ["port-scanner", "security", "nmap", "async", "avx512", "simd", "cve", "vulnerability", "network"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Networking :: Monitoring",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+]
+
+dependencies = [
+    "aiohttp>=3.8.0",
+    "requests>=2.28.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+gui = [
+    "PyQt6>=6.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=0.990",
+    "maturin>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/fastport"
+Repository = "https://github.com/yourusername/fastport"
+Documentation = "https://github.com/yourusername/fastport/blob/main/README.md"
+"Bug Reports" = "https://github.com/yourusername/fastport/issues"
+
+[project.scripts]
+fastport = "fastport.scanner:main"
+fastport-tui = "fastport.scanner_tui:main"
+fastport-pro = "fastport.scanner_pro_tui:main"
+fastport-gui = "fastport.scanner_gui:main"
+fastport-cve = "fastport.cve_scanner:main"
+fastport-cve-tui = "fastport.cve_scanner_tui:main"
+fastport-lookup = "fastport.cve_lookup:main"
+
+[tool.maturin]
+module-name = "fastport_core"
+python-source = "."
+manifest-path = "fastport-core/Cargo.toml"
+strip = true
+features = ["avx512"]  # Default to AVX-512, will fall back automatically
+
+# Build multiple wheels for different CPU features
+[tool.maturin.target]
+# AVX-512 optimized (default)
+[tool.maturin.target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+avx512f,+avx512bw,+avx512dq,+avx512vl"]
+
+[tool.maturin.target.x86_64-apple-darwin]
+rustflags = ["-C", "target-feature=+avx2,+fma"]  # macOS typically doesn't have AVX-512
+
+[tool.maturin.target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+avx512f,+avx512bw,+avx512dq,+avx512vl"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.isort]
+profile = "black"
+line_length = 100

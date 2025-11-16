@@ -1,0 +1,34 @@
+# FastPort - High-Performance Async Port Scanner with CVE Integration
+# Core dependencies for production use
+
+# HTTP client for async operations and CVE API queries
+aiohttp>=3.8.0
+
+# HTTP library for CVE lookups (NVD API)
+requests>=2.28.0
+
+# Beautiful terminal UI with progress bars, tables, and live displays
+rich>=13.0.0
+
+# Optional GUI dependencies (for fastport-gui)
+# Uncomment for GUI support:
+# PyQt6>=6.0.0
+
+# Rust core dependencies (built separately via maturin)
+# For maximum performance with AVX-512, build the Rust core:
+# cd fastport-core && maturin develop --release --features avx512
+#
+# Requirements for building Rust core:
+# - Rust 1.70+
+# - maturin>=1.0.0
+#
+# See BUILD.md for detailed instructions
+
+# Development dependencies (optional)
+# Uncomment for development/testing:
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+# black>=22.0.0
+# flake8>=5.0.0
+# mypy>=0.990
+# maturin>=1.0.0

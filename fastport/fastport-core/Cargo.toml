@@ -1,0 +1,68 @@
+[package]
+name = "fastport-core"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["HDAIS Project"]
+description = "High-performance AVX-512 async port scanner core"
+license = "MIT"
+
+[lib]
+name = "fastport_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Async runtime - tokio with all features
+tokio = { version = "1.35", features = ["full", "rt-multi-thread"] }
+tokio-util = "0.7"
+
+# Python bindings
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py38"] }
+pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
+
+# Networking
+socket2 = { version = "0.5", features = ["all"] }
+trust-dns-resolver = "0.23"
+
+# Performance and SIMD
+rayon = "1.8"
+crossbeam = "0.8"
+parking_lot = "0.12"
+
+# Core utilities
+anyhow = "1.0"
+thiserror = "1.0"
+bytes = "1.5"
+memchr = "2.7"
+num_cpus = "1.16"
+rand = "0.8"
+
+# CPU feature detection (compile-time)
+cfg-if = "1.0"
+raw-cpuid = "11.0"
+
+# Platform-specific dependencies
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[build-dependencies]
+cc = "1.0"
+
+[features]
+default = ["avx512"]
+avx512 = []
+avx2 = []
+neon = []  # For ARM support
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Note: Use RUSTFLAGS environment variable for target features instead of profile.rustflags
+# Example: RUSTFLAGS='-C target-feature=+avx2' cargo build --release

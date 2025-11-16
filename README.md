@@ -49,6 +49,13 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
   - Local-only Unix socket interface for AI/automation access
   - Query tunnel status, IPv6 addresses, and health programmatically
 
+- **FASTPORT IPv6 Scanner** 🆕
+  - High-performance IPv6 port scanner (20-25M packets/sec with AVX-512)
+  - Integrated with v6-gatewayd for automatic IPv6 source selection
+  - CVE vulnerability detection on discovered services
+  - Native IPv6 socket operations through Hurricane Electric tunnel
+  - See [fastport/README_IPV6.md](fastport/README_IPV6.md) for full documentation
+
 - **Production Ready**
   - Systemd integration
   - Health monitoring with automatic checks
@@ -226,6 +233,35 @@ curl http://localhost:8642/tunnels
 # Test IPv6 connectivity
 ping6 -c 3 2001:4860:4860::8888
 ```
+
+### IPv6 Port Scanning with FASTPORT
+
+After launching v6-gatewayd, you can use the integrated FASTPORT scanner for high-performance IPv6 reconnaissance:
+
+```bash
+# Check IPv6 connectivity
+fastport-ipv6 --check
+
+# Scan IPv6 host on common ports
+fastport-ipv6 2001:470:1f1c:258::1
+
+# Scan specific ports with CVE lookup
+fastport-ipv6 2001:470:1f1c:258::1 -p 22,80,443,8080 --cve
+
+# Scan port range with verbose output
+fastport-ipv6 2001:470:1f1c:258::1 -r 1-1000 -v
+
+# Save results to JSON
+fastport-ipv6 2001:470:1f1c:258::1 --cve -o scan-results.json
+```
+
+**Key Features:**
+- **Blazing Fast**: Async Python backend with planned Rust/AVX-512 integration
+- **CVE Integration**: Automatic vulnerability lookup for discovered services
+- **Auto-Detection**: Uses v6-gatewayd API to find source IPv6 address
+- **Banner Grabbing**: Service version detection for accurate CVE matching
+
+See [fastport/README_IPV6.md](fastport/README_IPV6.md) for complete documentation.
 
 ### Hurricane Electric Auto-Update
 

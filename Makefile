@@ -139,6 +139,7 @@ endif
 	install -D -m 755 scripts/he-creds-encrypt.sh $(SCRIPTSDIR)/he-creds-encrypt.sh
 	install -D -m 755 scripts/build-and-launch.sh $(BINDIR)/v6gw-launch
 	ln -sf $(BINDIR)/v6gw-launch $(BINDIR)/hurricane-launch 2>/dev/null || true
+	install -D -m 755 fastport-ipv6 $(BINDIR)/fastport-ipv6
 	mkdir -p $(STATEDIR)
 	@echo "Installation complete!"
 	@echo "1. Generate CNSA 2.0 keys:"

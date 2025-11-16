@@ -3,6 +3,7 @@ obj/
 *.o
 v6-gatewayd
 v6gw-keygen
+he-update
 
 # Editor files
 *.swp
@@ -21,3 +22,25 @@ keys.*
 
 # Logs
 *.log
+
+# Python (FASTPORT)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyc
+
+# Rust (FASTPORT core)
+fastport/fastport-core/target/
+fastport/Cargo.lock
+fastport/*.rs.bk
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache files
+*.cache
