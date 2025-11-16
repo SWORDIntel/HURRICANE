@@ -8,6 +8,7 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
 
 - **Multiple Tunnel Backends**
   - Hurricane Electric 6in4 (sit tunnels)
+  - **Mullvad VPN** - Privacy-focused WireGuard VPN (see [MULLVAD.md](docs/MULLVAD.md))
   - WireGuard support with wg-quick integration
   - External/pre-configured tunnel monitoring
 
@@ -176,6 +177,33 @@ v6_prefix = 2001:470::/64
 prefix_len = 64
 enabled = true
 ```
+
+#### Mullvad VPN (Privacy-Focused)
+
+**See detailed guide**: [docs/MULLVAD.md](docs/MULLVAD.md)
+
+```ini
+[tunnel.mullvad]
+type = wireguard
+iface = mullvad0
+v6_prefix = fc00:bbbb:bbbb:bb01::1  # Optional - from Mullvad config
+enabled = true
+priority = 0  # For failover
+```
+
+**Quick Setup:**
+1. Sign up at https://mullvad.net (€5/month, no personal info required)
+2. Generate WireGuard config at https://mullvad.net/en/account/#/wireguard-config
+3. Download config → save to `/etc/wireguard/mullvad0.conf`
+4. Configure v6-gatewayd with the example above
+5. Start: `sudo systemctl start v6-gatewayd`
+
+**Benefits:**
+- Privacy-focused (no logs, anonymous)
+- IPv4 + optional IPv6 support
+- Works worldwide (600+ servers)
+- Automatic failover between locations
+- Perfect for I2P, Tor, P2P apps
 
 #### External/Pre-configured Tunnel
 
