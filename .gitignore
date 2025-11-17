@@ -15,6 +15,7 @@ he-update
 # Runtime files
 *.pid
 *.sock
+.hurricane.pid
 
 # Cryptographic keys
 *.bin
@@ -22,6 +23,7 @@ keys.*
 
 # Logs
 *.log
+logs/
 
 # Python (FASTPORT)
 __pycache__/

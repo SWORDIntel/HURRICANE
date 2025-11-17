@@ -4,6 +4,31 @@
 
 HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over-IPv4 tunnels and exposes a simple REST API for applications to discover and use IPv6 connectivity. Perfect for running I2P, Tor, or other P2P applications behind residential NAT with real IPv6 addresses.
 
+## Quick Start
+
+**Unified Entry Point** - Single script controls everything:
+
+```bash
+# Installation (one-time)
+./install.sh
+
+# Start all services (daemon + API + WebUI + scanner)
+./hurricane start
+
+# Access WebUI
+open http://127.0.0.1:8643
+
+# Check status
+./hurricane status
+
+# Stop all services
+./hurricane stop
+```
+
+See **[QUICKSTART.md](QUICKSTART.md)** for complete usage guide.
+
+**Using as Submodule:** See **[SUBMODULE_INTEGRATION.md](SUBMODULE_INTEGRATION.md)** for integration into larger projects.
+
 ## Features
 
 - **Multiple Tunnel Backends**

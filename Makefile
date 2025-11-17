@@ -191,7 +191,14 @@ debug: clean all
 help:
 	@echo "HURRICANE v6-gatewayd Build System"
 	@echo ""
-	@echo "Targets:"
+	@echo "Unified Entry Points (Recommended):"
+	@echo "  setup     - Run unified installation script"
+	@echo "  start     - Start all services (daemon + API + WebUI)"
+	@echo "  stop      - Stop all services"
+	@echo "  restart   - Restart all services"
+	@echo "  status    - Show service status"
+	@echo ""
+	@echo "Build Targets:"
 	@echo "  all       - Build the daemon (default)"
 	@echo "  deps      - Install system dependencies (requires root)"
 	@echo "  bootstrap - Install deps, then build (requires root)"
@@ -269,3 +276,39 @@ bootstrap: deps all
 	@echo ""
 	@echo "Bootstrap complete! Daemon built successfully."
 	@echo "Run 'sudo make install' to install to system"
+
+# Unified entry points
+.PHONY: setup start stop restart status
+
+setup:
+	@echo "Running unified installation script..."
+	@./install.sh
+
+start:
+	@if [ ! -f "hurricane" ]; then \
+		echo "Error: hurricane control script not found"; \
+		echo "Run 'make setup' first"; \
+		exit 1; \
+	fi
+	@./hurricane start
+
+stop:
+	@if [ ! -f "hurricane" ]; then \
+		echo "Error: hurricane control script not found"; \
+		exit 1; \
+	fi
+	@./hurricane stop
+
+restart:
+	@if [ ! -f "hurricane" ]; then \
+		echo "Error: hurricane control script not found"; \
+		exit 1; \
+	fi
+	@./hurricane restart
+
+status:
+	@if [ ! -f "hurricane" ]; then \
+		echo "Error: hurricane control script not found"; \
+		exit 1; \
+	fi
+	@./hurricane status
