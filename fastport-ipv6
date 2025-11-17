@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""
+FASTPORT IPv6 - Convenience wrapper for IPv6 scanning
+Quick access to FASTPORT's IPv6 capabilities via Hurricane Electric tunnel
+"""
+
+import sys
+from pathlib import Path
+
+# Add FASTPORT to path
+fastport_dir = Path(__file__).parent / 'fastport'
+sys.path.insert(0, str(fastport_dir))
+
+from fastport.scanner_ipv6 import main
+
+if __name__ == '__main__':
+    main()

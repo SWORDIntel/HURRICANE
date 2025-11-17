@@ -21,18 +21,28 @@ crypto_keyfile = /var/lib/v6-gatewayd/keys.bin
 # socks5: Daemon provides SOCKS5 proxy
 mode = kernel
 
-# Hurricane Electric 6in4 Tunnel Example
+# Hurricane Electric 6in4 Tunnel
+# Tunnel ID: 940962 - SWORD HQ
 [tunnel.he]
 type = he_6in4
 iface = he0
-# Your tunnel server IPv4 address (from tunnelbroker.net)
-endpoint_ipv4 = 216.66.80.26
-# Your local/WAN IPv4 address (or leave empty for auto-detect)
-local_ipv4 =
-# Your allocated IPv6 /64 prefix
-v6_prefix = 2001:470:1234:5678::2
+# Server IPv4 Address (from tunnelbroker.net)
+endpoint_ipv4 = 216.66.88.98
+# Client IPv4 Address (your WAN IP, or leave empty for auto-detect)
+local_ipv4 = 86.31.80.211
+# Client IPv6 Address (from tunnel allocation)
+v6_prefix = 2001:470:1f1c:258::2
 prefix_len = 64
 enabled = true
+priority = 0
+
+# Additional Routed Prefixes:
+# Routed /64: 2001:470:1f1d:256::/64
+# Routed /48: 2001:470:18ed::/48
+# DNS Resolvers:
+# - IPv6: 2001:470:20::2 (anycast)
+# - IPv4: 74.82.42.42 (anycast)
+# - DoH/DoT: ordns.he.net
 
 # WireGuard Tunnel Example
 # Requires: /etc/wireguard/wg0.conf to be configured

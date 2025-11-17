@@ -1,0 +1,25 @@
+# Include documentation
+include README.md
+include BUILD.md
+include LICENSE
+include requirements.txt
+
+# Include Rust source
+recursive-include fastport-core *.rs
+recursive-include fastport-core *.toml
+include fastport-core/build.rs
+
+# Include build scripts
+include build.sh
+include pyproject.toml
+
+# Include Python source
+recursive-include fastport *.py
+
+# Exclude compiled files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+recursive-exclude target *
+recursive-exclude .git *
+recursive-exclude .github *

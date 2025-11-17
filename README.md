@@ -4,6 +4,31 @@
 
 HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over-IPv4 tunnels and exposes a simple REST API for applications to discover and use IPv6 connectivity. Perfect for running I2P, Tor, or other P2P applications behind residential NAT with real IPv6 addresses.
 
+## Quick Start
+
+**Unified Entry Point** - Single script controls everything:
+
+```bash
+# Installation (one-time)
+./install.sh
+
+# Start all services (daemon + API + WebUI + scanner)
+./hurricane start
+
+# Access WebUI
+open http://127.0.0.1:8643
+
+# Check status
+./hurricane status
+
+# Stop all services
+./hurricane stop
+```
+
+See **[QUICKSTART.md](QUICKSTART.md)** for complete usage guide.
+
+**Using as Submodule:** See **[SUBMODULE_INTEGRATION.md](SUBMODULE_INTEGRATION.md)** for integration into larger projects.
+
 ## Features
 
 - **Multiple Tunnel Backends**
@@ -49,6 +74,21 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
   - Local-only Unix socket interface for AI/automation access
   - Query tunnel status, IPv6 addresses, and health programmatically
 
+- **FASTPORT IPv6 Scanner** 🆕
+  - High-performance IPv6 port scanner (20-25M packets/sec with AVX-512)
+  - Integrated with v6-gatewayd for automatic IPv6 source selection
+  - CVE vulnerability detection on discovered services
+  - Native IPv6 socket operations through Hurricane Electric tunnel
+  - See [fastport/README_IPV6.md](fastport/README_IPV6.md) for full documentation
+
+- **IPv9 Routing Integration** 🆕
+  - Dual routing support: IPv6 + IPv9 (China Decimal Network)
+  - IPVNINER integration for .chn domain resolution
+  - Switch between IPv6, IPv9, or Dual mode via API/WebUI
+  - DNS overlay routing through IPv9 servers (202.170.218.93, 61.244.5.162)
+  - Simultaneous access to both networks in Dual mode
+  - See [docs/IPV9_ROUTING_INTEGRATION.md](docs/IPV9_ROUTING_INTEGRATION.md) for details
+
 - **Production Ready**
   - Systemd integration
   - Health monitoring with automatic checks
@@ -90,18 +130,77 @@ HURRICANE (codename: v6-gatewayd) is a lightweight daemon that manages IPv6-over
 ### Prerequisites
 
 - Linux system with root access
-- GCC compiler
 - IPv4 connectivity
 - Hurricane Electric tunnel account (https://tunnelbroker.net) or other IPv6 tunnel provider
 
-### Build
+### One-Command Setup (Recommended - SWORD HQ)
+
+**The absolute easiest way** - single command does everything:
 
 ```bash
 # Clone the repository
 git clone https://github.com/SWORDIntel/HURRICANE.git
 cd HURRICANE
 
-# Build
+# One-command launch: builds, installs, configures, starts everything
+./launch.sh
+```
+
+This master launch script will:
+- Install all system dependencies (auto-detects Debian/Ubuntu, RHEL/Fedora, Arch)
+- Build the daemon and utilities (v6-gatewayd, v6gw-keygen, he-update)
+- Install to system directories
+- **Encrypt and install SWORD HQ credentials** (Tunnel ID: 940962)
+  - Username: `SWORDIntel`
+  - Password: `dokuchayev` (encrypted with AES-256-CBC + machine-specific key)
+- Start the daemon with auto-start enabled
+- Enable Hurricane Electric auto-update timer (checks IP every 15 minutes)
+- Show live status and WebUI URL
+
+**Toggle mode:** Run `./launch.sh` again to:
+- **Stop** the daemon if it's running
+- **Start** it if it's stopped
+
+After installation, these helper commands are available:
+```bash
+sudo v6gw-launch          # Toggle daemon (start/stop)
+sudo hurricane-launch     # Alias for v6gw-launch
+```
+
+### Manual Bootstrap (Alternative)
+
+If you want more control over the build process:
+
+```bash
+# Clone and build
+git clone https://github.com/SWORDIntel/HURRICANE.git
+cd HURRICANE
+
+# Install dependencies and build
+sudo make bootstrap
+
+# Install to system
+sudo make install
+
+# Quick launch with encrypted credentials
+sudo v6gw-launch
+```
+
+### Manual Build (Alternative)
+
+If you prefer to install dependencies manually:
+
+```bash
+# Install dependencies first
+# Debian/Ubuntu:
+sudo apt-get install -y gcc make libssl-dev libcurl4-openssl-dev \
+    iproute2 iputils-ping wireguard-tools curl jq bc
+
+# RHEL/CentOS/Fedora:
+sudo dnf install -y gcc make openssl-devel libcurl-devel \
+    iproute iputils wireguard-tools curl jq bc
+
+# Then build
 make
 
 # Install (requires root)
@@ -167,6 +266,132 @@ curl http://localhost:8642/tunnels
 # Test IPv6 connectivity
 ping6 -c 3 2001:4860:4860::8888
 ```
+
+### IPv6 Port Scanning with FASTPORT
+
+After launching v6-gatewayd, you can use the integrated FASTPORT scanner for high-performance IPv6 reconnaissance:
+
+```bash
+# Check IPv6 connectivity
+fastport-ipv6 --check
+
+# Scan IPv6 host on common ports
+fastport-ipv6 2001:470:1f1c:258::1
+
+# Scan specific ports with CVE lookup
+fastport-ipv6 2001:470:1f1c:258::1 -p 22,80,443,8080 --cve
+
+# Scan port range with verbose output
+fastport-ipv6 2001:470:1f1c:258::1 -r 1-1000 -v
+
+# Save results to JSON
+fastport-ipv6 2001:470:1f1c:258::1 --cve -o scan-results.json
+```
+
+**Key Features:**
+- **Blazing Fast**: Async Python backend with planned Rust/AVX-512 integration
+- **CVE Integration**: Automatic vulnerability lookup for discovered services
+- **Auto-Detection**: Uses v6-gatewayd API to find source IPv6 address
+- **Banner Grabbing**: Service version detection for accurate CVE matching
+
+See [fastport/README_IPV6.md](fastport/README_IPV6.md) for complete documentation.
+
+### Hurricane Electric Auto-Update
+
+**If you used `./launch.sh`**, this is already configured! The launch script automatically:
+- Encrypts your SWORD HQ credentials (AES-256-CBC with machine-specific key)
+- Installs the systemd timer (runs every 15 minutes)
+- Enables auto-start for the update service
+
+Your tunnel endpoint will automatically update when your IP changes, with credentials securely encrypted at rest.
+
+**Manual configuration** (if you didn't use the launch script):
+
+If you have a dynamic IP address, you can manually configure the `he-update` utility to automatically update your Hurricane Electric tunnel endpoint when your IP changes.
+
+**Requirements:**
+- libcurl development library: `sudo apt-get install libcurl4-openssl-dev`
+- Hurricane Electric tunnel account credentials
+
+**Getting Your Credentials:**
+1. Login to https://tunnelbroker.net
+2. Click on your tunnel
+3. Under "Example Update URL", you'll find credentials in this format:
+   ```
+   https://USERNAME:PASSWORD@ipv4.tunnelbroker.net/nic/update?hostname=TUNNEL_ID
+   ```
+4. Use the USERNAME (your HE account username) and PASSWORD (your HE account password or update key)
+5. Use the TUNNEL_ID (the numeric ID after `hostname=`)
+
+**Manual Usage:**
+
+```bash
+# Auto-detect your public IP and update tunnel endpoint
+he-update -u SWORDIntel -p your_password -t 940962
+
+# Force update even if IP hasn't changed
+he-update -u SWORDIntel -p your_password -t 940962 -f
+
+# Specify a specific IP address
+he-update -u SWORDIntel -p your_password -t 940962 -i 1.2.3.4
+
+# Verbose output
+he-update -u SWORDIntel -p your_password -t 940962 -v
+```
+
+**Automatic Updates with Systemd:**
+
+1. Create environment file with your credentials:
+
+```bash
+sudo cp config/v6-gatewayd-he.env.example /etc/v6-gatewayd-he.env
+sudo nano /etc/v6-gatewayd-he.env
+```
+
+2. Configure your credentials in `/etc/v6-gatewayd-he.env`:
+
+```bash
+HE_USERNAME=your_username
+HE_PASSWORD=your_password_or_update_key
+HE_TUNNEL_ID=940962
+```
+
+3. Secure the credentials file:
+
+```bash
+sudo chmod 600 /etc/v6-gatewayd-he.env
+sudo chown root:root /etc/v6-gatewayd-he.env
+```
+
+4. Install and enable the systemd timer:
+
+```bash
+# Copy service files (if not already installed via 'make install')
+sudo cp systemd/he-update.service /etc/systemd/system/
+sudo cp systemd/he-update.timer /etc/systemd/system/
+
+# Enable and start the timer (runs every 15 minutes)
+sudo systemctl daemon-reload
+sudo systemctl enable he-update.timer
+sudo systemctl start he-update.timer
+
+# Check timer status
+sudo systemctl status he-update.timer
+
+# View update logs
+sudo journalctl -u he-update -f
+```
+
+The timer will automatically:
+- Check your public IP every 15 minutes
+- Update the Hurricane Electric tunnel endpoint only if your IP has changed
+- Cache the last known IP to avoid unnecessary API calls
+- Log all updates to systemd journal
+
+**Notes:**
+- The update client caches your IP in `/var/lib/v6-gatewayd/he-ip.cache`
+- Updates only happen when your IP actually changes (no unnecessary API calls)
+- If libcurl is not available during build, `he-update` will be skipped (daemon still builds normally)
 
 ## Configuration Reference
 

@@ -1,0 +1,12 @@
+# Cargo configuration for FASTPORT
+#
+# To enable AVX-512 optimizations, uncomment the following lines:
+# [build]
+# rustflags = ["-C", "target-feature=+avx512f,+avx512dq,+avx512cd,+avx512bw,+avx512vl"]
+#
+# To enable AVX2 optimizations, uncomment the following lines instead:
+# [build]
+# rustflags = ["-C", "target-feature=+avx2,+fma"]
+#
+# Or set the RUSTFLAGS environment variable:
+# export RUSTFLAGS="-C target-feature=+avx512f,+avx512dq,+avx512cd,+avx512bw,+avx512vl"

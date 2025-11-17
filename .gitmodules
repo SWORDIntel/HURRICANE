@@ -1,0 +1,3 @@
+[submodule "ipvniner"]
+	path = ipvniner
+	url = https://github.com/SWORDIntel/IPVNINER.git

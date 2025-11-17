@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Unified FASTPORT Scanner - IPv6 + IPv9"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / 'fastport'))
+from fastport.scanner_unified import main
+if __name__ == '__main__':
+    main()
