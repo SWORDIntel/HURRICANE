@@ -102,20 +102,24 @@ jobs:
         enabled = false
         EOF
 
-        # Start daemon in background
-        sudo ./v6-gatewayd -c /tmp/v6gw.conf &
-        DAEMON_PID=$!
-        echo "Daemon started with PID: $DAEMON_PID"
+        # Start daemon (it daemonizes itself)
+        sudo ./v6-gatewayd -c /tmp/v6gw.conf
+        echo "Daemon starting..."
 
         # Wait for daemon to be ready
         sleep 3
 
-        # Check if daemon is running
-        if ps -p $DAEMON_PID > /dev/null; then
-          echo "Daemon is running"
+        # Check if daemon is running by testing API endpoint
+        if curl -sf http://127.0.0.1:8642/health > /dev/null 2>&1; then
+          echo "Daemon is running (API responding)"
         else
-          echo "Daemon failed to start"
-          exit 1
+          echo "Checking if process exists..."
+          if pgrep -x v6-gatewayd > /dev/null; then
+            echo "Daemon process running but API not ready yet"
+          else
+            echo "Daemon failed to start"
+            exit 1
+          fi
         fi
 
     - name: Run integration tests
