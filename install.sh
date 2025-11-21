@@ -81,20 +81,20 @@ detect_pkg_manager() {
 }
 
 install_system_deps() {
-    echo -e "${BLUE}[1/7] Updating package lists...${NC}"
+    echo -e "${BLUE}[1/8] Updating package lists...${NC}"
     $UPDATE_CMD || true
 
-    echo -e "${BLUE}[2/7] Installing system dependencies...${NC}"
+    echo -e "${BLUE}[2/8] Installing system dependencies...${NC}"
 
     case "$PKG_MGR" in
         apt-get)
-            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config")
+            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config" "libcurl4-openssl-dev" "libpam0g-dev")
             ;;
         dnf|yum)
-            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel")
+            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel" "libcurl-devel" "pam-devel")
             ;;
         pacman)
-            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl")
+            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl" "curl" "pam")
             ;;
     esac
 
@@ -106,7 +106,7 @@ install_system_deps() {
 }
 
 install_rust() {
-    echo -e "${BLUE}[3/7] Installing Rust (for FASTPORT)...${NC}"
+    echo -e "${BLUE}[3/8] Installing Rust (for FASTPORT)...${NC}"
     if ! command -v cargo &> /dev/null; then
         echo -e "  ${YELLOW}Installing Rust toolchain...${NC}"
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -118,7 +118,7 @@ install_rust() {
 }
 
 setup_python_venv() {
-    echo -e "${BLUE}[4/7] Setting up Python virtual environment...${NC}"
+    echo -e "${BLUE}[4/8] Setting up Python virtual environment...${NC}"
 
     # Create virtual environment
     if [ ! -d "$VENV_DIR" ]; then
@@ -150,7 +150,7 @@ ENVEOF
 }
 
 init_submodules() {
-    echo -e "${BLUE}[5/7] Initializing git submodules (IPVNINER)...${NC}"
+    echo -e "${BLUE}[5/8] Initializing git submodules (IPVNINER)...${NC}"
     if [ -f .gitmodules ]; then
         git submodule update --init --recursive
         echo -e "  ${GREEN}Submodules initialized${NC}"
