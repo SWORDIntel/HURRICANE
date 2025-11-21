@@ -250,19 +250,11 @@ install_docker() {
     fi
     echo -e "  ${GREEN}Docker Compose ready${NC}"
 
-    # Create docker-compose.yml if not exists
-    echo -e "${BLUE}[3/4] Setting up Docker Compose configuration...${NC}"
-    if [ ! -f docker-compose.yml ]; then
-        create_docker_compose
-        echo -e "  ${GREEN}Created docker-compose.yml${NC}"
-    else
-        echo -e "  ${GREEN}docker-compose.yml already exists${NC}"
-    fi
-
-    # Create Dockerfile if not exists
-    if [ ! -f Dockerfile ]; then
-        create_dockerfile
-        echo -e "  ${GREEN}Created Dockerfile${NC}"
+    # Verify Docker configuration files exist
+    echo -e "${BLUE}[3/4] Checking Docker configuration...${NC}"
+    if ! check_docker_files; then
+        echo -e "${RED}Docker configuration files missing. Cannot proceed.${NC}"
+        exit 1
     fi
 
     # Build and start
@@ -272,87 +264,18 @@ install_docker() {
     print_success_docker
 }
 
-create_docker_compose() {
-    cat > docker-compose.yml << 'DCEOF'
-version: '3.8'
-
-services:
-  hurricane:
-    build: .
-    container_name: hurricane-gateway
-    restart: unless-stopped
-    ports:
-      - "8642:8642"  # Daemon API
-      - "8643:8643"  # WebUI
-    volumes:
-      - ./config:/app/config:ro
-      - ./logs:/app/logs
-      - hurricane-data:/app/data
-    cap_add:
-      - NET_ADMIN
-    sysctls:
-      - net.ipv6.conf.all.disable_ipv6=0
-    networks:
-      - hurricane-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8643/routing/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-networks:
-  hurricane-net:
-    driver: bridge
-    enable_ipv6: true
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
-        - subnet: fd00:dead:beef::/48
-
-volumes:
-  hurricane-data:
-DCEOF
-}
-
-create_dockerfile() {
-    cat > Dockerfile << 'DFEOF'
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    iproute2 \
-    iptables \
-    net-tools \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Copy requirements and install
-COPY requirements.txt* ./
-RUN pip install --no-cache-dir Flask flask-cors requests aiohttp rich || true
-
-# Copy application
-COPY . .
-
-# Build FASTPORT if available
-RUN if [ -d "fastport/fastport-core" ] && [ -f "fastport/fastport-core/Cargo.toml" ]; then \
-    cd fastport/fastport-core && cargo build --release; \
+check_docker_files() {
+    # Verify existing Docker files
+    if [ ! -f "Dockerfile" ]; then
+        echo -e "  ${RED}Dockerfile not found!${NC}"
+        return 1
     fi
-
-# Make scripts executable
-RUN chmod +x scripts/*.py 2>/dev/null || true && \
-    chmod +x hurricane 2>/dev/null || true
-
-EXPOSE 8642 8643
-
-CMD ["./hurricane", "start"]
-DFEOF
+    if [ ! -f "docker-compose.yml" ]; then
+        echo -e "  ${RED}docker-compose.yml not found!${NC}"
+        return 1
+    fi
+    echo -e "  ${GREEN}Using existing Dockerfile and docker-compose.yml${NC}"
+    return 0
 }
 
 update_deps_only() {
@@ -440,19 +363,7 @@ main() {
     check_not_root
     detect_pkg_manager
 
-    # Check for command line argument
-    if [[ "$1" == "--native" || "$1" == "-n" ]]; then
-        install_native
-        exit 0
-    elif [[ "$1" == "--docker" || "$1" == "-d" ]]; then
-        install_docker
-        exit 0
-    elif [[ "$1" == "--update" || "$1" == "-u" ]]; then
-        update_deps_only
-        exit 0
-    fi
-
-    # Interactive menu
+    # Interactive TUI menu (no CLI flags - use menu selection)
     while true; do
         print_banner
         print_menu
