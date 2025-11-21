@@ -1,4 +1,4 @@
-# HURRICANE v6-gatewayd
+# HURRICANE v6.9
 
 **High-performance IPv6-over-IPv4 tunnel gateway with programmatic API**
 
