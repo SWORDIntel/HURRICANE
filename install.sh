@@ -159,8 +159,22 @@ init_submodules() {
     fi
 }
 
+build_daemon() {
+    echo -e "${BLUE}[6/8] Building v6-gatewayd daemon...${NC}"
+    if [ -f "Makefile" ]; then
+        make clean 2>/dev/null || true
+        if make build; then
+            echo -e "  ${GREEN}v6-gatewayd daemon built successfully${NC}"
+        else
+            echo -e "  ${YELLOW}Daemon build failed (may need additional deps)${NC}"
+        fi
+    else
+        echo -e "  ${YELLOW}Makefile not found, skipping daemon build${NC}"
+    fi
+}
+
 build_fastport() {
-    echo -e "${BLUE}[6/7] Building FASTPORT (Rust core)...${NC}"
+    echo -e "${BLUE}[7/8] Building FASTPORT (Rust core)...${NC}"
     if [ -d "fastport/fastport-core" ]; then
         cd fastport/fastport-core
         if [ -f Cargo.toml ]; then
@@ -177,7 +191,7 @@ build_fastport() {
 }
 
 install_scripts() {
-    echo -e "${BLUE}[7/7] Installing HURRICANE scripts...${NC}"
+    echo -e "${BLUE}[8/8] Installing HURRICANE scripts...${NC}"
 
     # Create wrapper scripts that activate venv
     sudo mkdir -p /usr/local/bin
@@ -218,6 +232,7 @@ install_native() {
     install_rust
     setup_python_venv
     init_submodules
+    build_daemon
     build_fastport
     install_scripts
 
