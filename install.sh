@@ -163,7 +163,7 @@ build_daemon() {
     echo -e "${BLUE}[6/8] Building v6-gatewayd daemon...${NC}"
     if [ -f "Makefile" ]; then
         make clean 2>/dev/null || true
-        if make build; then
+        if make; then
             echo -e "  ${GREEN}v6-gatewayd daemon built successfully${NC}"
         else
             echo -e "  ${YELLOW}Daemon build failed (may need additional deps)${NC}"
