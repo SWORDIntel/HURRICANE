@@ -88,13 +88,13 @@ install_system_deps() {
 
     case "$PKG_MGR" in
         apt-get)
-            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config" "libcurl4-openssl-dev" "libpam0g-dev")
+            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config" "libcurl4-openssl-dev" "libpam0g-dev" "libfprint-2-dev" "libyubikey-dev" "libykpers-1-dev")
             ;;
         dnf|yum)
-            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel" "libcurl-devel" "pam-devel")
+            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel" "libcurl-devel" "pam-devel" "libfprint-devel" "libyubikey-devel" "ykpers-devel")
             ;;
         pacman)
-            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl" "curl" "pam")
+            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl" "curl" "pam" "libfprint" "yubikey-personalization")
             ;;
     esac
 
