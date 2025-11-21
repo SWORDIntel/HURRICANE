@@ -363,7 +363,30 @@ main() {
     check_not_root
     detect_pkg_manager
 
-    # Interactive TUI menu (no CLI flags - use menu selection)
+    # CLI flags for non-interactive use
+    if [[ "$1" == "--native" || "$1" == "-n" ]]; then
+        install_native
+        exit 0
+    elif [[ "$1" == "--docker" || "$1" == "-d" ]]; then
+        install_docker
+        exit 0
+    elif [[ "$1" == "--update" || "$1" == "-u" ]]; then
+        update_deps_only
+        exit 0
+    elif [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: ./install.sh [OPTION]"
+        echo ""
+        echo "Options:"
+        echo "  -n, --native   Native installation with Python venv"
+        echo "  -d, --docker   Docker installation"
+        echo "  -u, --update   Update dependencies only"
+        echo "  -h, --help     Show this help"
+        echo ""
+        echo "Run without options for interactive TUI menu."
+        exit 0
+    fi
+
+    # Interactive TUI menu
     while true; do
         print_banner
         print_menu
