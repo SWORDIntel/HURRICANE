@@ -88,13 +88,13 @@ install_system_deps() {
 
     case "$PKG_MGR" in
         apt-get)
-            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config" "libcurl4-openssl-dev" "libpam0g-dev")
+            SYSTEM_DEPS=("build-essential" "git" "curl" "wget" "cmake" "ninja-build" "python3" "python3-pip" "python3-venv" "python3-full" "iproute2" "iptables" "net-tools" "libssl-dev" "pkg-config" "libcurl4-openssl-dev" "libpam0g-dev" "libfprint-2-dev" "libyubikey-dev" "libykpers-1-dev")
             ;;
         dnf|yum)
-            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel" "libcurl-devel" "pam-devel")
+            SYSTEM_DEPS=("gcc" "gcc-c++" "make" "cmake" "ninja-build" "git" "curl" "wget" "python3" "python3-pip" "python3-virtualenv" "iproute" "iptables" "net-tools" "openssl-devel" "libcurl-devel" "pam-devel" "libfprint-devel" "libyubikey-devel" "ykpers-devel")
             ;;
         pacman)
-            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl" "curl" "pam")
+            SYSTEM_DEPS=("base-devel" "git" "curl" "wget" "cmake" "ninja" "python" "python-pip" "python-virtualenv" "iproute2" "iptables" "net-tools" "openssl" "curl" "pam" "libfprint" "yubikey-personalization")
             ;;
     esac
 
@@ -105,8 +105,59 @@ install_system_deps() {
     echo -e "  ${GREEN}System dependencies installed${NC}"
 }
 
+install_liboqs() {
+    echo -e "${BLUE}[3/9] Installing liboqs (CNSA 2.0 post-quantum crypto)...${NC}"
+
+    # Check if already installed
+    if pkg-config --exists liboqs 2>/dev/null; then
+        echo -e "  ${GREEN}liboqs already installed${NC}"
+        return 0
+    fi
+
+    # Check if we have cmake
+    if ! command -v cmake &> /dev/null; then
+        echo -e "  ${YELLOW}cmake not found, skipping liboqs (optional)${NC}"
+        return 0
+    fi
+
+    echo -e "  ${YELLOW}Building liboqs from source...${NC}"
+
+    # Clone and build
+    LIBOQS_DIR="/tmp/liboqs-build"
+    rm -rf "$LIBOQS_DIR"
+
+    if git clone --depth 1 https://github.com/open-quantum-safe/liboqs.git "$LIBOQS_DIR"; then
+        cd "$LIBOQS_DIR"
+        mkdir -p build && cd build
+
+        # Configure with cmake
+        if cmake -GNinja \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DBUILD_SHARED_LIBS=ON \
+            -DOQS_BUILD_ONLY_LIB=ON \
+            -DOQS_USE_OPENSSL=ON \
+            ..; then
+
+            # Build and install
+            if ninja && sudo ninja install; then
+                sudo ldconfig
+                echo -e "  ${GREEN}liboqs installed successfully${NC}"
+            else
+                echo -e "  ${YELLOW}liboqs build failed (optional, using OpenSSL fallback)${NC}"
+            fi
+        else
+            echo -e "  ${YELLOW}liboqs cmake failed (optional, using OpenSSL fallback)${NC}"
+        fi
+
+        cd "$SCRIPT_DIR"
+        rm -rf "$LIBOQS_DIR"
+    else
+        echo -e "  ${YELLOW}Failed to clone liboqs (optional, using OpenSSL fallback)${NC}"
+    fi
+}
+
 install_rust() {
-    echo -e "${BLUE}[3/8] Installing Rust (for FASTPORT)...${NC}"
+    echo -e "${BLUE}[4/9] Installing Rust (for FASTPORT)...${NC}"
     if ! command -v cargo &> /dev/null; then
         echo -e "  ${YELLOW}Installing Rust toolchain...${NC}"
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -118,7 +169,7 @@ install_rust() {
 }
 
 setup_python_venv() {
-    echo -e "${BLUE}[4/8] Setting up Python virtual environment...${NC}"
+    echo -e "${BLUE}[5/9] Setting up Python virtual environment...${NC}"
 
     # Create virtual environment
     if [ ! -d "$VENV_DIR" ]; then
@@ -150,7 +201,7 @@ ENVEOF
 }
 
 init_submodules() {
-    echo -e "${BLUE}[5/8] Initializing git submodules (IPVNINER)...${NC}"
+    echo -e "${BLUE}[6/9] Initializing git submodules (IPVNINER)...${NC}"
     if [ -f .gitmodules ]; then
         git submodule update --init --recursive
         echo -e "  ${GREEN}Submodules initialized${NC}"
@@ -160,7 +211,7 @@ init_submodules() {
 }
 
 build_daemon() {
-    echo -e "${BLUE}[6/8] Building v6-gatewayd daemon...${NC}"
+    echo -e "${BLUE}[7/9] Building v6-gatewayd daemon...${NC}"
     if [ -f "Makefile" ]; then
         make clean 2>/dev/null || true
         if make; then
@@ -174,7 +225,7 @@ build_daemon() {
 }
 
 build_fastport() {
-    echo -e "${BLUE}[7/8] Building FASTPORT (Rust core)...${NC}"
+    echo -e "${BLUE}[8/9] Building FASTPORT (Rust core)...${NC}"
     if [ -d "fastport/fastport-core" ]; then
         cd fastport/fastport-core
         if [ -f Cargo.toml ]; then
@@ -191,7 +242,7 @@ build_fastport() {
 }
 
 install_scripts() {
-    echo -e "${BLUE}[8/8] Installing HURRICANE scripts...${NC}"
+    echo -e "${BLUE}[9/9] Installing HURRICANE scripts...${NC}"
 
     # Create wrapper scripts that activate venv
     sudo mkdir -p /usr/local/bin
@@ -229,6 +280,7 @@ install_native() {
     echo ""
 
     install_system_deps
+    install_liboqs
     install_rust
     setup_python_venv
     init_submodules
