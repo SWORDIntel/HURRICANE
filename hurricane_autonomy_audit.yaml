@@ -1,0 +1,277 @@
+hurricane_autonomy_audit:
+  summary:
+    overall_status: WARN
+    key_findings:
+      - "System has basic autonomy primitives (auto-start, health checks, failover) but lacks complete self-healing"
+      - "Config reload mechanism is incomplete (SIGHUP handler exists but not implemented)"
+      - "No correlation IDs or structured audit trail for tunnel operations"
+      - "HE tunnel endpoint auto-update works autonomously via systemd timer"
+      - "Tunnel failover is automatic but lacks rollback on failure"
+      - "API endpoints can modify system state (tunnel start/stop) without rate limiting or safety guards"
+
+  readiness_score:
+    ingest_to_actuation: 75
+    self_start_recovery: 85
+    observability: 60
+    safety_controls: 45
+
+  component_findings:
+    - name: "v6-gatewayd daemon"
+      role: "control-plane"
+      status: OK
+      issues:
+        - id: "AUT-001"
+          description: "Systemd service configured with auto-start and restart policies"
+          impact: LOW
+          autonomy_effect: "startup|recovery"
+          evidence: "systemd/v6-gatewayd.service: WantedBy=multi-user.target, Restart=on-failure, RestartSec=5s"
+        - id: "AUT-002"
+          description: "Deterministic startup sequence in main.c (config → crypto → tunnels → API → main loop)"
+          impact: LOW
+          autonomy_effect: "startup"
+          evidence: "src/main.c:150-356 shows ordered initialization"
+        - id: "AUT-003"
+          description: "Config reload (SIGHUP) handler exists but implementation is TODO"
+          impact: MEDIUM
+          autonomy_effect: "recovery"
+          evidence: "src/main.c:34-36 shows SIGHUP handler with TODO comment"
+
+    - name: "Tunnel management"
+      role: "actuator"
+      status: WARN
+      issues:
+        - id: "AUT-004"
+          description: "Automatic tunnel failover every 60 seconds with health-based selection"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "src/main.c:134-137, src/tunnel.c:300-386"
+        - id: "AUT-005"
+          description: "Tunnel start/stop/restart via API lacks rate limiting or safety guards"
+          impact: HIGH
+          autonomy_effect: "safety"
+          evidence: "src/api.c:439-532 - no rate limiting, no preconditions check"
+        - id: "AUT-006"
+          description: "No rollback mechanism if tunnel operation fails mid-way"
+          impact: MEDIUM
+          autonomy_effect: "recovery"
+          evidence: "src/tunnel.c:136-172 - operations are atomic but no rollback on partial failure"
+        - id: "AUT-007"
+          description: "Tunnel operations can modify kernel routing without validation"
+          impact: HIGH
+          autonomy_effect: "safety"
+          evidence: "src/tunnel.c:24-73 - ip commands executed without validation or dry-run"
+
+    - name: "Health monitoring"
+      role: "ingest"
+      status: OK
+      issues:
+        - id: "AUT-008"
+          description: "Periodic health checks every 30 seconds with IPv6 ping"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "src/main.c:118-123, src/health.c:127-159"
+        - id: "AUT-009"
+          description: "Health scoring algorithm (0-100) based on reachability and latency"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "src/tunnel.c:231-264"
+        - id: "AUT-010"
+          description: "Health checks require CAP_NET_RAW (root privileges)"
+          impact: LOW
+          autonomy_effect: "startup"
+          evidence: "src/health.c:55-59 - socket creation requires root"
+
+    - name: "HE tunnel endpoint update"
+      role: "actuator"
+      status: OK
+      issues:
+        - id: "AUT-011"
+          description: "Automatic HE endpoint update via systemd timer (every 15 minutes)"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "systemd/he-update.timer: OnUnitActiveSec=15min, OnBootSec=2min"
+        - id: "AUT-012"
+          description: "HE credentials stored in environment file (encrypted at rest per README)"
+          impact: MEDIUM
+          autonomy_effect: "startup"
+          evidence: "systemd/he-update.service: EnvironmentFile=/etc/v6-gatewayd-he.env"
+        - id: "AUT-013"
+          description: "IP change detection with cache to avoid unnecessary API calls"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "systemd/he-update.service: -c /var/lib/v6-gatewayd/he-ip.cache"
+
+    - name: "REST API"
+      role: "ingest|actuator"
+      status: WARN
+      issues:
+        - id: "AUT-014"
+          description: "API binds to localhost only (127.0.0.1) for security"
+          impact: LOW
+          autonomy_effect: "safety"
+          evidence: "config/v6-gatewayd.conf: api_bind = 127.0.0.1"
+        - id: "AUT-015"
+          description: "No authentication required when crypto_enabled=false (default)"
+          impact: MEDIUM
+          autonomy_effect: "safety"
+          evidence: "config/v6-gatewayd.conf: crypto_enabled = false, src/api.c:54-71"
+        - id: "AUT-016"
+          description: "API endpoints can modify tunnel state without rate limiting"
+          impact: HIGH
+          autonomy_effect: "safety"
+          evidence: "src/api.c:439-532 - no rate limiting on POST /tunnel/:id/start|stop|restart"
+        - id: "AUT-017"
+          description: "No correlation IDs in API requests for audit trail"
+          impact: MEDIUM
+          autonomy_effect: "observability"
+          evidence: "src/api.c:762-868 - no request ID generation or tracking"
+
+    - name: "Logging system"
+      role: "ingest"
+      status: WARN
+      issues:
+        - id: "AUT-018"
+          description: "Structured logging with timestamps and log levels"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "src/log.c:35-49 - timestamp and level formatting"
+        - id: "AUT-019"
+          description: "Logs go to stderr (captured by systemd journal)"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "src/log.c:45-48, systemd/v6-gatewayd.service: StandardOutput=journal"
+        - id: "AUT-020"
+          description: "No correlation IDs or request tracing in logs"
+          impact: MEDIUM
+          autonomy_effect: "observability"
+          evidence: "src/log.c - no correlation ID support"
+        - id: "AUT-021"
+          description: "No log retention policy or rotation configured"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "systemd service uses journal (managed by systemd-journald)"
+        - id: "AUT-022"
+          description: "API /logs endpoint returns tunnel state, not actual log entries"
+          impact: MEDIUM
+          autonomy_effect: "observability"
+          evidence: "src/api.c:575-622 - returns tunnel state instead of log buffer"
+
+    - name: "Metrics and telemetry"
+      role: "ingest"
+      status: OK
+      issues:
+        - id: "AUT-023"
+          description: "Prometheus-compatible metrics endpoint (/metrics)"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "src/api.c:624-708 - Prometheus text format export"
+        - id: "AUT-024"
+          description: "Metrics include tunnel state, health, latency, and traffic stats"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "src/api.c:630-705 - comprehensive metrics"
+        - id: "AUT-025"
+          description: "No centralized metrics aggregation configured"
+          impact: LOW
+          autonomy_effect: "observability"
+          evidence: "config/prometheus.yml exists but not integrated into systemd service"
+
+    - name: "Configuration management"
+      role: "control-plane"
+      status: WARN
+      issues:
+        - id: "AUT-026"
+          description: "Config file required at startup (ConditionPathExists)"
+          impact: LOW
+          autonomy_effect: "startup"
+          evidence: "systemd/v6-gatewayd.service: ConditionPathExists=/etc/v6-gatewayd.conf"
+        - id: "AUT-027"
+          description: "Config validation on startup (config_validate)"
+          impact: LOW
+          autonomy_effect: "startup"
+          evidence: "src/main.c:204-207, src/config.c:147-166"
+        - id: "AUT-028"
+          description: "Hard-coded paths in config (state_dir, keyfile)"
+          impact: LOW
+          autonomy_effect: "startup"
+          evidence: "config/v6-gatewayd.conf: state_dir = /var/lib/v6-gatewayd"
+        - id: "AUT-029"
+          description: "No automatic config refresh (SIGHUP not implemented)"
+          impact: MEDIUM
+          autonomy_effect: "recovery"
+          evidence: "src/main.c:34-36 - TODO comment"
+
+    - name: "MCP server"
+      role: "ingest"
+      status: OK
+      issues:
+        - id: "AUT-030"
+          description: "MCP server on Unix socket for local-only access"
+          impact: LOW
+          autonomy_effect: "safety"
+          evidence: "src/main.c:296-303, README.md mentions /var/run/v6-gatewayd-mcp.sock"
+        - id: "AUT-031"
+          description: "Read-only operations (query only, no modifications)"
+          impact: LOW
+          autonomy_effect: "safety"
+          evidence: "README.md: 'Read-only operations (query only, no modifications)'"
+
+    - name: "Proxy and SOCKS5 modes"
+      role: "actuator"
+      status: WARN
+      issues:
+        - id: "AUT-032"
+          description: "Proxy mode (UDP/TCP relay) and SOCKS5 mode implemented but not enabled by default"
+          impact: LOW
+          autonomy_effect: "loop"
+          evidence: "config/v6-gatewayd.conf: mode = kernel (not proxy or socks5)"
+        - id: "AUT-033"
+          description: "Port mapping via API (POST /ports/udp, POST /ports/tcp) without rate limits"
+          impact: MEDIUM
+          autonomy_effect: "safety"
+          evidence: "src/api.c:339-418 - no rate limiting on port mapping creation"
+
+  autonomy_gaps:
+    - "Manual action required for config reload - SIGHUP handler not implemented"
+    - "No automatic recovery from config file corruption or invalid syntax"
+    - "No automatic rollback if tunnel operation fails after partial completion"
+    - "No rate limiting on tunnel control API endpoints (risk of rapid start/stop cycles)"
+    - "No validation or dry-run mode for kernel routing changes"
+    - "No correlation IDs for tracing events through the system"
+    - "No structured audit trail for tunnel state changes (who/what/when)"
+    - "HE credentials in environment file (though encrypted at rest) - no secret rotation"
+    - "No automatic detection and recovery from network interface failures"
+    - "No health check for API server itself (only tunnels are monitored)"
+    - "No automatic cleanup of stale tunnel interfaces on crash recovery"
+    - "No back-pressure handling for API requests under load"
+    - "No automatic failover if systemd service fails to start"
+
+  recommended_fixes:
+    immediate:
+      - "Implement SIGHUP handler for config reload without restart"
+      - "Add rate limiting to tunnel control API endpoints (max 1 operation per 10 seconds per tunnel)"
+      - "Add correlation IDs to all API requests and log entries"
+      - "Implement dry-run mode for tunnel operations (validate before executing)"
+      - "Add structured audit log for all tunnel state changes (JSON format with timestamp, user, action, result)"
+
+    short_term:
+      - "Add automatic rollback mechanism for failed tunnel operations"
+      - "Implement health check for API server (separate from tunnel health)"
+      - "Add automatic cleanup of stale tunnel interfaces on startup"
+      - "Add back-pressure handling for API requests (queue with max size)"
+      - "Implement config file validation with detailed error messages"
+      - "Add automatic detection of network interface failures and recovery"
+      - "Add metrics for API request rate, latency, and error rates"
+
+    long_term:
+      - "Implement secret rotation for HE credentials"
+      - "Add distributed tracing support (OpenTelemetry)"
+      - "Implement config versioning and rollback capability"
+      - "Add automatic failover for systemd service (watchdog or external monitor)"
+      - "Implement circuit breaker pattern for tunnel operations"
+      - "Add automatic capacity planning and scaling recommendations"
+      - "Implement event sourcing for tunnel state changes (full audit trail)"
+      - "Add automatic detection and mitigation of DDoS attacks on API"
+      - "Implement automatic tunnel optimization based on historical performance data"
+
+
